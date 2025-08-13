@@ -1,0 +1,216 @@
+# 代码生成模块使用规范
+
+## 代码生成器架构
+
+### 1. 核心组件
+- **Controller生成器**: 生成API控制器代码
+- **Service生成器**: 生成业务服务层代码
+- **DAO生成器**: 生成数据访问层代码
+- **Entity生成器**: 生成数据实体对象
+- **模板引擎**: 使用Jinja2模板系统
+
+### 2. 文件结构
+```
+module_generator/
+├── controller/          # 控制器生成器
+├── service/            # 服务层生成器
+├── dao/               # 数据访问层生成器
+├── entity/            # 实体生成器
+│   ├── do/           # 数据对象模板
+│   └── vo/           # 视图对象模板
+└── templates/         # 模板文件
+    ├── python/        # Python代码模板
+    ├── vue/           # Vue前端模板
+    ├── sql/           # SQL脚本模板
+    └── js/            # JavaScript API模板
+```
+
+## 模板开发规范
+
+### 1. Jinja2模板语法
+```jinja2
+{# 变量使用 #}
+{{ table_name }}
+
+{# 条件判断 #}
+{% if table.has_comment %}
+    # {{ table.comment }}
+{% endif %}
+
+{# 循环遍历 #}
+{% for column in columns %}
+    {{ column.name }}: {{ column.type }},
+{% endfor %}
+
+{# 宏定义 #}
+{% macro render_field(column) %}
+    {{ column.name }}: {{ column.type }}
+{% endmacro %}
+```
+
+### 2. 模板变量规范
+- **table**: 表信息对象
+- **columns**: 字段列表
+- **primary_key**: 主键字段
+- **table_name**: 表名
+- **entity_name**: 实体名称
+- **package_name**: 包名
+
+### 3. 模板文件命名
+- 使用描述性的文件名
+- 包含文件类型标识
+- 遵循项目命名规范
+
+## 代码生成流程
+
+### 1. 数据库表分析
+```python
+async def analyze_table(self, table_name: str) -> TableInfo:
+    # 1. 获取表结构信息
+    # 2. 分析字段类型和约束
+    # 3. 识别主键和外键
+    # 4. 生成表信息对象
+    pass
+```
+
+### 2. 代码生成步骤
+```python
+async def generate_code(self, table_info: TableInfo) -> GenerationResult:
+    # 1. 生成DO实体
+    await self.generate_do(table_info)
+    
+    # 2. 生成VO对象
+    await self.generate_vo(table_info)
+    
+    # 3. 生成DAO层
+    await self.generate_dao(table_info)
+    
+    # 4. 生成Service层
+    await self.generate_service(table_info)
+    
+    # 5. 生成Controller层
+    await self.generate_controller(table_info)
+    
+    # 6. 生成前端代码
+    await self.generate_frontend(table_info)
+```
+
+## 模板开发指南
+
+### 1. Python代码模板
+```jinja2
+# {{ table.comment }}控制器
+from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional
+from {{ package_name }}.entity.vo.{{ entity_name.lower() }}_vo import {{ entity_name }}VO, {{ entity_name }}AddVO, {{ entity_name }}UpdateVO
+from {{ package_name }}.service.{{ entity_name.lower() }}_service import {{ entity_name }}Service
+from utils.response_util import ResponseResult
+
+router = APIRouter(prefix="/{{ entity_name.lower() }}", tags=["{{ table.comment }}"])
+
+@router.get("/list", response_model=List[{{ entity_name }}VO])
+async def get_{{ entity_name.lower() }}_list():
+    """获取{{ table.comment }}列表"""
+    service = {{ entity_name }}Service()
+    return await service.get_list()
+```
+
+### 2. Vue前端模板
+```vue
+<template>
+  <div class="app-container">
+    <!-- 搜索表单 -->
+    <el-form :model="queryParams" ref="queryForm" :inline="true">
+      {% for column in columns %}
+      {% if column.is_searchable %}
+      <el-form-item label="{{ column.comment }}" prop="{{ column.name }}">
+        <el-input
+          v-model="queryParams.{{ column.name }}"
+          placeholder="请输入{{ column.comment }}"
+          clearable
+        />
+      </el-form-item>
+      {% endif %}
+      {% endfor %}
+    </el-form>
+    
+    <!-- 操作按钮 -->
+    <el-row :gutter="10" class="mb8">
+      <el-col :span="1.5">
+        <el-button type="primary" @click="handleAdd">新增</el-button>
+      </el-col>
+    </el-row>
+    
+    <!-- 数据表格 -->
+    <el-table v-loading="loading" :data="dataList">
+      {% for column in columns %}
+      <el-table-column label="{{ column.comment }}" prop="{{ column.name }}" />
+      {% endfor %}
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+        <template #default="scope">
+          <el-button type="text" @click="handleUpdate(scope.row)">修改</el-button>
+          <el-button type="text" @click="handleDelete(scope.row)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+  </div>
+</template>
+```
+
+### 3. SQL脚本模板
+```sql
+-- {{ table.comment }}表
+CREATE TABLE {{ table.name }} (
+    {% for column in columns %}
+    {{ column.name }} {{ column.type }}{% if column.length %}({{ column.length }}){% endif %}{% if column.is_nullable == false %} NOT NULL{% endif %}{% if column.default_value %} DEFAULT {{ column.default_value }}{% endif %}{% if column.comment %}{% if column.comment != '' %} COMMENT '{{ column.comment }}'{% endif %}{% endif %}{% if not loop.last %},{% endif %}
+    {% endfor %}
+    {% if table.primary_key %}
+    PRIMARY KEY ({{ table.primary_key }})
+    {% endif %}
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='{{ table.comment }}';
+```
+
+## 配置管理
+
+### 1. 生成配置
+```python
+class GenSettings:
+    author = 'insistence'
+    package_name = 'module_admin.system'
+    auto_remove_pre = False
+    table_prefix = 'sys_'
+    allow_overwrite = False
+    GEN_PATH = 'vf_admin/gen_path'
+```
+
+### 2. 表配置
+- **表前缀**: 自动移除指定的表前缀
+- **字段映射**: 配置字段类型映射关系
+- **生成选项**: 控制生成哪些类型的代码
+
+## 最佳实践
+
+### 1. 模板维护
+- 保持模板的通用性和可扩展性
+- 使用宏和包含文件减少重复
+- 定期更新模板以适应新需求
+
+### 2. 代码质量
+- 生成的代码应该符合项目规范
+- 包含必要的注释和文档
+- 遵循最佳实践和设计模式
+
+### 3. 错误处理
+- 提供清晰的错误信息
+- 支持部分生成和回滚
+- 记录生成日志和统计信息
+
+### 4. 扩展性
+- 支持自定义模板
+- 支持插件机制
+- 支持批量生成和增量更新
+description:
+globs:
+alwaysApply: false
+---
+ 

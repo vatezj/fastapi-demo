@@ -1,0 +1,147 @@
+# 服务层开发模式
+
+## 服务层职责
+
+### 1. 业务逻辑处理
+- 实现核心业务规则
+- 处理复杂的业务流程
+- 协调多个DAO层的操作
+
+### 2. 事务管理
+- 管理数据库事务
+- 确保数据一致性
+- 处理事务回滚
+
+### 3. 数据转换
+- 在DO和VO之间转换
+- 处理数据格式化和验证
+- 实现业务规则验证
+
+## 服务层结构规范
+
+### 1. 基本结构
+```python
+class EntityService:
+    def __init__(self):
+        self.dao = EntityDao()
+        self.other_service = OtherService()
+    
+    # 业务方法
+    async def process_business_logic(self, data: BusinessData) -> BusinessResult:
+        # 1. 参数验证
+        # 2. 业务规则检查
+        # 3. 调用DAO层
+        # 4. 处理结果
+        # 5. 返回结果
+        pass
+```
+
+### 2. 事务管理
+```python
+async def create_with_transaction(self, data: CreateData) -> Result:
+    async with self.db.begin() as transaction:
+        try:
+            # 执行业务逻辑
+            result = await self.dao.create(data)
+            # 其他相关操作
+            await transaction.commit()
+            return result
+        except Exception as e:
+            await transaction.rollback()
+            raise e
+```
+
+## 业务逻辑规范
+
+### 1. 参数验证
+- 在服务层进行业务规则验证
+- 检查数据完整性和一致性
+- 实现自定义验证逻辑
+
+### 2. 业务规则
+- 实现领域特定的业务规则
+- 处理复杂的业务约束
+- 实现业务状态管理
+
+### 3. 异常处理
+- 定义业务异常类型
+- 提供详细的错误信息
+- 实现优雅的错误处理
+
+## 数据操作规范
+
+### 1. 批量操作
+```python
+async def batch_process(self, items: List[Item]) -> BatchResult:
+    results = []
+    for item in items:
+        try:
+            result = await self.process_single_item(item)
+            results.append(result)
+        except Exception as e:
+            # 记录错误，继续处理其他项
+            logger.error(f"处理项目失败: {item}, 错误: {e}")
+    
+    return BatchResult(success_count=len(results), failed_count=len(items) - len(results))
+```
+
+### 2. 缓存策略
+- 实现数据缓存机制
+- 管理缓存生命周期
+- 处理缓存失效和更新
+
+### 3. 异步处理
+- 使用异步操作提高性能
+- 实现并发处理
+- 管理异步任务队列
+
+## 服务间通信
+
+### 1. 服务依赖
+- 通过构造函数注入依赖
+- 避免循环依赖
+- 使用接口解耦
+
+### 2. 事件驱动
+- 实现服务间事件通信
+- 使用消息队列
+- 处理异步事件
+
+## 性能优化
+
+### 1. 查询优化
+- 优化数据库查询
+- 实现分页和懒加载
+- 使用索引和缓存
+
+### 2. 并发控制
+- 实现并发安全
+- 使用锁机制
+- 处理竞态条件
+
+### 3. 资源管理
+- 管理数据库连接
+- 控制内存使用
+- 实现资源池化
+
+## 测试策略
+
+### 1. 单元测试
+- 测试业务逻辑
+- 模拟依赖服务
+- 覆盖边界情况
+
+### 2. 集成测试
+- 测试服务间交互
+- 验证数据一致性
+- 测试事务处理
+
+### 3. 性能测试
+- 测试响应时间
+- 验证并发性能
+- 压力测试
+description:
+globs:
+alwaysApply: false
+---
+ 

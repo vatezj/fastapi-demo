@@ -1,0 +1,79 @@
+# 数据库操作模式
+
+## 数据访问层 (DAO) 规范
+
+### 1. 异步操作
+- 所有数据库操作必须使用异步方式
+- 使用 `async def` 定义方法
+- 使用 `await` 调用异步数据库操作
+
+### 2. 查询模式
+```python
+# 分页查询
+async def get_page_list(self, query: PageQuery) -> PageResult[Entity]:
+    # 实现分页逻辑
+    
+# 条件查询
+async def get_list_by_condition(self, condition: dict) -> List[Entity]:
+    # 实现条件查询逻辑
+    
+# 单条查询
+async def get_by_id(self, id: int) -> Optional[Entity]:
+    # 实现单条查询逻辑
+```
+
+### 3. 事务管理
+- 事务操作在服务层处理
+- 使用 `async with db.begin()` 管理事务
+
+## 数据实体 (Entity) 规范
+
+### 1. DO (Data Object) - 数据库映射对象
+- 位置：`module_admin/entity/do/`
+- 继承自SQLAlchemy的Base类
+- 包含数据库表的所有字段映射
+
+### 2. VO (View Object) - 视图对象
+- 位置：`module_admin/entity/vo/`
+- 用于API响应的数据结构
+- 使用Pydantic进行数据验证
+
+### 3. 字段命名规范
+- 数据库字段使用下划线命名法 (snake_case)
+- Python属性使用下划线命名法 (snake_case)
+- 主键字段统一命名为 `id`
+- 创建时间字段命名为 `create_time`
+- 更新时间字段命名为 `update_time`
+
+## 数据库配置
+
+### 1. 连接配置
+- 通过 [config/env.py](mdc:config/env.py) 管理数据库连接参数
+- 支持MySQL和PostgreSQL
+- 使用连接池管理连接
+
+### 2. 初始化
+- 数据库表初始化通过 [config/get_db.py](mdc:config/get_db.py) 处理
+- 应用启动时自动创建表结构
+
+## 最佳实践
+
+### 1. 查询优化
+- 使用索引优化查询性能
+- 避免N+1查询问题
+- 合理使用分页查询
+
+### 2. 数据安全
+- 使用参数化查询防止SQL注入
+- 敏感数据加密存储
+- 实现数据权限控制
+
+### 3. 错误处理
+- 数据库连接异常处理
+- 事务回滚机制
+- 详细的错误日志记录
+description:
+globs:
+alwaysApply: false
+---
+ 

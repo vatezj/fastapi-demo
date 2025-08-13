@@ -1,0 +1,48 @@
+# RuoYi-FastAPI 项目结构指南
+
+## 主要入口点
+- [app.py](mdc:app.py) - 应用启动入口，使用uvicorn运行FastAPI应用
+- [server.py](mdc:server.py) - 主服务器配置，包含FastAPI应用初始化和路由注册
+
+## 核心配置
+- [config/env.py](mdc:config/env.py) - 应用配置管理，包含数据库、Redis、JWT等配置
+- [config/database.py](mdc:config/database.py) - 数据库连接配置
+- [config/get_db.py](mdc:config/get_db.py) - 数据库初始化工具
+- [config/get_redis.py](mdc:config/get_redis.py) - Redis连接工具
+- [config/get_scheduler.py](mdc:config/get_scheduler.py) - 定时任务调度器
+
+## 模块架构
+项目采用模块化设计，主要包含：
+
+### 管理模块 (module_admin/)
+- **controller/** - 控制器层，处理HTTP请求
+- **service/** - 业务逻辑层
+- **dao/** - 数据访问层
+- **entity/** - 数据实体
+  - **do/** - 数据对象 (Data Object)
+  - **vo/** - 视图对象 (View Object)
+
+### 代码生成模块 (module_generator/)
+- 提供代码生成功能
+- 包含各种模板文件
+
+### 任务模块 (module_task/)
+- 定时任务和调度相关功能
+
+## 中间件和异常处理
+- [middlewares/](mdc:middlewares/) - 中间件处理
+- [exceptions/](mdc:exceptions/) - 异常处理机制
+
+## 工具类
+- [utils/](mdc:utils/) - 通用工具函数
+
+## 子应用
+- [sub_applications/](mdc:sub_applications/) - 子应用处理
+
+## 数据库脚本
+- [sql/](mdc:sql/) - 数据库初始化脚本
+description:
+globs:
+alwaysApply: false
+---
+ 

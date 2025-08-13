@@ -1,0 +1,125 @@
+# API 控制器开发模式
+
+## 控制器结构规范
+
+### 1. 基本结构
+每个控制器应包含以下标准方法：
+```python
+class EntityController:
+    def __init__(self):
+        self.service = EntityService()
+    
+    # 分页查询
+    async def get_page_list(self, query: PageQuery) -> PageResult[EntityVO]:
+        pass
+    
+    # 获取列表
+    async def get_list(self, entity: EntityQuery) -> List[EntityVO]:
+        pass
+    
+    # 根据ID获取
+    async def get_by_id(self, id: int) -> EntityVO:
+        pass
+    
+    # 新增
+    async def add(self, entity: EntityAddVO) -> ResponseResult:
+        pass
+    
+    # 修改
+    async def update(self, entity: EntityUpdateVO) -> ResponseResult:
+        pass
+    
+    # 删除
+    async def delete(self, ids: List[int]) -> ResponseResult:
+        pass
+```
+
+### 2. 路由装饰器
+- 使用FastAPI的路由装饰器
+- 指定HTTP方法和路径
+- 添加标签和描述信息
+
+### 3. 参数验证
+- 使用Pydantic模型进行参数验证
+- 定义清晰的请求和响应模型
+- 实现参数类型检查和转换
+
+## 响应格式规范
+
+### 1. 统一响应结构
+```python
+class ResponseResult:
+    code: int = 200
+    msg: str = "操作成功"
+    data: Any = None
+```
+
+### 2. 分页响应
+```python
+class PageResult:
+    total: int
+    rows: List[Any]
+    page_num: int
+    page_size: int
+```
+
+## 错误处理
+
+### 1. 异常捕获
+- 在控制器层捕获业务异常
+- 记录详细的错误日志
+- 返回用户友好的错误信息
+
+### 2. 状态码使用
+- 200: 成功
+- 400: 请求参数错误
+- 401: 未授权
+- 403: 禁止访问
+- 404: 资源不存在
+- 500: 服务器内部错误
+
+## 权限控制
+
+### 1. 接口权限
+- 使用装饰器进行权限验证
+- 实现角色和权限检查
+- 支持数据权限控制
+
+### 2. 用户认证
+- JWT token验证
+- 用户会话管理
+- 登录状态检查
+
+## 日志记录
+
+### 1. 操作日志
+- 记录用户操作
+- 记录请求参数和响应结果
+- 记录执行时间
+
+### 2. 错误日志
+- 记录异常信息
+- 记录堆栈跟踪
+- 记录相关上下文信息
+
+## 最佳实践
+
+### 1. 代码组织
+- 保持控制器简洁，业务逻辑放在服务层
+- 使用依赖注入管理服务实例
+- 实现接口文档注释
+
+### 2. 性能优化
+- 避免在控制器中进行复杂计算
+- 合理使用缓存
+- 实现请求限流
+
+### 3. 测试
+- 编写单元测试
+- 测试各种边界情况
+- 模拟异常场景
+description:
+globs:
+alwaysApply: false
+---
+ 

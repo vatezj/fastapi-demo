@@ -1,0 +1,52 @@
+# FastAPI 开发规范
+
+## 项目架构模式
+本项目采用分层架构模式：
+
+### 1. 控制器层 (Controller)
+- 位置：`module_admin/controller/`
+- 职责：处理HTTP请求，参数验证，调用服务层
+- 命名规范：`*_controller.py`，类名以`Controller`结尾
+
+### 2. 服务层 (Service)
+- 位置：`module_admin/service/`
+- 职责：业务逻辑处理，事务管理
+- 命名规范：`*_service.py`，类名以`Service`结尾
+
+### 3. 数据访问层 (DAO)
+- 位置：`module_admin/dao/`
+- 职责：数据库操作，SQL查询
+- 命名规范：`*_dao.py`，类名以`Dao`结尾
+
+### 4. 数据实体 (Entity)
+- **DO (Data Object)**: `module_admin/entity/do/` - 数据库表映射对象
+- **VO (View Object)**: `module_admin/entity/vo/` - 视图展示对象
+
+## 代码规范
+
+### 导入顺序
+1. 标准库导入
+2. 第三方库导入
+3. 本地模块导入
+
+### 异常处理
+- 使用项目统一的异常处理机制
+- 在控制器层捕获异常，让中间件统一处理
+
+### 配置管理
+- 所有配置通过 [config/env.py](mdc:config/env.py) 管理
+- 使用环境变量和配置文件
+
+### 数据库操作
+- 使用异步数据库操作
+- 事务管理在服务层处理
+- 使用连接池管理数据库连接
+
+### 日志记录
+- 使用项目统一的日志工具 [utils/log_util.py](mdc:utils/log_util.py)
+- 记录关键操作和错误信息
+description:
+globs:
+alwaysApply: false
+---
+ 

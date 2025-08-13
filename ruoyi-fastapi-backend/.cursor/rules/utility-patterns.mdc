@@ -1,0 +1,209 @@
+# 工具类开发模式
+
+## 工具类分类
+
+### 1. 通用工具 (common_util.py)
+- 提供通用的辅助函数
+- 包含常用的工具方法
+- 不依赖特定业务逻辑
+
+### 2. 日志工具 (log_util.py)
+- 统一的日志记录机制
+- 支持不同级别的日志
+- 配置化的日志输出
+
+### 3. 数据库工具 (database_util.py)
+- 数据库连接管理
+- 查询构建器
+- 事务管理工具
+
+### 4. 时间工具 (time_format_util.py)
+- 时间格式化
+- 时区处理
+- 时间计算
+
+### 5. 字符串工具 (string_util.py)
+- 字符串处理
+- 格式验证
+- 编码转换
+
+## 工具类设计原则
+
+### 1. 单一职责
+- 每个工具类只负责一个特定功能
+- 避免功能耦合
+- 保持类的简洁性
+
+### 2. 无状态设计
+- 工具类应该是无状态的
+- 方法应该是纯函数
+- 避免副作用
+
+### 3. 可测试性
+- 工具方法应该易于测试
+- 支持单元测试
+- 提供测试用例
+
+## 常用工具模式
+
+### 1. 装饰器模式
+```python
+def retry_on_failure(max_retries: int = 3, delay: float = 1.0):
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    await asyncio.sleep(delay)
+            return None
+        return wrapper
+    return decorator
+```
+
+### 2. 单例模式
+```python
+class SingletonUtil:
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+```
+
+### 3. 工厂模式
+```python
+class UtilFactory:
+    @staticmethod
+    def create_util(util_type: str):
+        if util_type == "string":
+            return StringUtil()
+        elif util_type == "time":
+            return TimeUtil()
+        else:
+            raise ValueError(f"未知的工具类型: {util_type}")
+```
+
+## 工具类使用规范
+
+### 1. 导入方式
+```python
+# 推荐：导入具体的方法
+from utils.string_util import format_string, validate_string
+
+# 不推荐：导入整个模块
+import utils.string_util
+```
+
+### 2. 错误处理
+- 工具方法应该处理常见的错误情况
+- 提供有意义的错误信息
+- 支持自定义异常类型
+
+### 3. 性能考虑
+- 避免重复计算
+- 使用缓存机制
+- 优化算法复杂度
+
+## 日志工具使用
+
+### 1. 日志级别
+```python
+from utils.log_util import logger
+
+# 调试信息
+logger.debug("调试信息")
+
+# 一般信息
+logger.info("操作成功")
+
+# 警告信息
+logger.warning("警告信息")
+
+# 错误信息
+logger.error("发生错误")
+
+# 严重错误
+logger.critical("严重错误")
+```
+
+### 2. 结构化日志
+```python
+logger.info("用户操作", extra={
+    "user_id": user_id,
+    "action": "login",
+    "ip": client_ip
+})
+```
+
+## 时间工具使用
+
+### 1. 时间格式化
+```python
+from utils.time_format_util import format_datetime, parse_datetime
+
+# 格式化时间
+formatted_time = format_datetime(datetime.now(), "%Y-%m-%d %H:%M:%S")
+
+# 解析时间
+parsed_time = parse_datetime("2024-01-01 12:00:00", "%Y-%m-%d %H:%M:%S")
+```
+
+### 2. 时区处理
+```python
+from utils.time_format_util import convert_timezone
+
+# 转换时区
+utc_time = convert_timezone(local_time, "Asia/Shanghai", "UTC")
+```
+
+## 字符串工具使用
+
+### 1. 字符串验证
+```python
+from utils.string_util import is_valid_email, is_valid_phone
+
+# 验证邮箱
+if is_valid_email(email):
+    # 处理邮箱
+
+# 验证手机号
+if is_valid_phone(phone):
+    # 处理手机号
+```
+
+### 2. 字符串处理
+```python
+from utils.string_util import camel_to_snake, snake_to_camel
+
+# 驼峰转下划线
+snake_case = camel_to_snake("userName")  # user_name
+
+# 下划线转驼峰
+camel_case = snake_to_camel("user_name")  # userName
+```
+
+## 最佳实践
+
+### 1. 文档和注释
+- 为每个工具方法提供文档字符串
+- 说明参数和返回值
+- 提供使用示例
+
+### 2. 版本兼容性
+- 保持向后兼容
+- 使用语义化版本号
+- 提供迁移指南
+
+### 3. 性能监控
+- 监控工具方法的性能
+- 记录执行时间
+- 优化慢速操作
+description:
+globs:
+alwaysApply: false
+---
+ 
