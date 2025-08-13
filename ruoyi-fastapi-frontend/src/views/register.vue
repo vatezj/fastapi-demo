@@ -1,7 +1,7 @@
 <template>
   <div class="register">
     <el-form ref="registerRef" :model="registerForm" :rules="registerRules" class="register-form">
-      <h3 class="title">vfadmin后台管理系统</h3>
+      <h3 class="title">{{ VITE_APP_TITLE }}</h3>
       <el-form-item prop="username">
         <el-input 
           v-model="registerForm.username" 
@@ -78,6 +78,8 @@
 <script setup>
 import { ElMessageBox } from "element-plus";
 import { getCodeImg, register } from "@/api/login";
+
+const { VITE_APP_TITLE } = import.meta.env;
 
 const router = useRouter();
 const { proxy } = getCurrentInstance();

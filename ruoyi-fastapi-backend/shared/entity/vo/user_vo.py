@@ -46,9 +46,9 @@ class UserCreateVO(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="用户名")
     nickname: Optional[str] = Field(None, max_length=50, description="昵称")
     email: EmailStr = Field(..., description="邮箱")
-    phone: Optional[str] = Field(None, regex=r'^1[3-9]\d{9}$', description="手机号")
+    phone: Optional[str] = Field(None, pattern=r'^1[3-9]\d{9}$', description="手机号")
     password: str = Field(..., min_length=6, max_length=100, description="密码")
-    sex: Optional[str] = Field(None, regex=r'^[012]$', description="性别")
+    sex: Optional[str] = Field(None, pattern=r'^[012]$', description="性别")
     dept_id: Optional[int] = Field(None, description="部门ID")
     post_id: Optional[int] = Field(None, description="岗位ID")
     profile: Optional[str] = Field(None, max_length=500, description="个人简介")
@@ -58,13 +58,13 @@ class UserUpdateVO(BaseModel):
     
     nickname: Optional[str] = Field(None, max_length=50, description="昵称")
     email: Optional[EmailStr] = Field(None, description="邮箱")
-    phone: Optional[str] = Field(None, regex=r'^1[3-9]\d{9}$', description="手机号")
-    sex: Optional[str] = Field(None, regex=r'^[012]$', description="性别")
+    phone: Optional[str] = Field(None, pattern=r'^1[3-9]\d{9}$', description="手机号")
+    sex: Optional[str] = Field(None, pattern=r'^[012]$', description="性别")
     avatar: Optional[str] = Field(None, max_length=255, description="头像")
     dept_id: Optional[int] = Field(None, description="部门ID")
     post_id: Optional[int] = Field(None, description="岗位ID")
     profile: Optional[str] = Field(None, max_length=500, description="个人简介")
-    status: Optional[str] = Field(None, regex=r'^[01]$', description="状态")
+    status: Optional[str] = Field(None, pattern=r'^[01]$', description="状态")
 
 class UserPasswordVO(BaseModel):
     """用户密码视图对象"""

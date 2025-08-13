@@ -22,6 +22,7 @@ from utils.common_util import bytes2file_response
 from utils.log_util import logger
 from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
+from config.get_redis import RedisUtil
 
 
 dictController = APIRouter(prefix='/system/dict', dependencies=[Depends(LoginService.get_current_user)])
@@ -139,8 +140,10 @@ async def export_system_dict_type_list(
 @dictController.get('/data/type/{dict_type}')
 async def query_system_dict_type_data(request: Request, dict_type: str, query_db: AsyncSession = Depends(get_db)):
     # 获取全量数据
+    # 获取Redis连接
+    redis = await RedisUtil.get_redis_pool()
     dict_data_query_result = await DictDataService.query_dict_data_list_from_cache_services(
-        request.app.state.redis, dict_type
+        redis, dict_type
     )
     logger.info('获取成功')
 

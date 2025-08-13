@@ -6,23 +6,8 @@ from config.get_redis import RedisUtil
 from config.get_scheduler import SchedulerUtil
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
-from module_admin.controller.cache_controller import cacheController
-from module_admin.controller.captcha_controller import captchaController
-from module_admin.controller.common_controller import commonController
-from module_admin.controller.config_controller import configController
-from module_admin.controller.dept_controller import deptController
-from module_admin.controller.dict_controller import dictController
-from module_admin.controller.log_controller import logController
-from module_admin.controller.login_controller import loginController
-from module_admin.controller.job_controller import jobController
-from module_admin.controller.menu_controller import menuController
-from module_admin.controller.notice_controller import noticeController
-from module_admin.controller.online_controller import onlineController
-from module_admin.controller.post_controler import postController
-from module_admin.controller.role_controller import roleController
-from module_admin.controller.server_controller import serverController
-from module_admin.controller.user_controller import userController
-from module_generator.controller.gen_controller import genController
+from module_admin.app import admin_app
+from module_app.app import app_app
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
 from utils.log_util import logger
@@ -33,54 +18,85 @@ from utils.log_util import logger
 async def lifespan(app: FastAPI):
     logger.info(f'{AppConfig.app_name}开始启动')
     worship()
-    await init_create_table()
-    app.state.redis = await RedisUtil.create_redis_pool()
-    await RedisUtil.init_sys_dict(app.state.redis)
-    await RedisUtil.init_sys_config(app.state.redis)
-    await SchedulerUtil.init_system_scheduler()
-    logger.info(f'{AppConfig.app_name}启动成功')
+    
+    # 设置启动状态
+    app.state.startup_complete = False
+    app.state.redis = None
+    
+    try:
+        # 初始化数据库表
+        await init_create_table()
+        logger.info('数据库表初始化完成')
+        
+        # 初始化Redis连接
+        redis = await RedisUtil.create_redis_pool()
+        if redis:
+            app.state.redis = redis
+            logger.info('Redis连接初始化完成')
+            
+            # 初始化系统字典和配置缓存
+            try:
+                await RedisUtil.init_sys_dict(redis)
+                await RedisUtil.init_sys_config(redis)
+                logger.info('系统缓存初始化完成')
+            except Exception as e:
+                logger.error(f'系统缓存初始化失败：{e}')
+        else:
+            logger.warning('Redis连接失败，应用将在无缓存模式下运行')
+            app.state.redis = None
+        
+        # 初始化调度器
+        try:
+            await SchedulerUtil.init_system_scheduler()
+            logger.info('系统调度器初始化完成')
+        except Exception as e:
+            logger.error(f'系统调度器初始化失败：{e}')
+        
+        # 标记启动完成
+        app.state.startup_complete = True
+        logger.info(f'{AppConfig.app_name}启动成功')
+        
+    except Exception as e:
+        logger.error(f'应用启动失败：{e}')
+        app.state.startup_complete = False
+        raise
+    
     yield
-    await RedisUtil.close_redis_pool(app)
-    await SchedulerUtil.close_system_scheduler()
+    
+    # 应用关闭时的清理工作
+    try:
+        if hasattr(app.state, 'redis') and app.state.redis:
+            await RedisUtil.close_redis_pool(app)
+    except Exception as e:
+        logger.error(f'关闭Redis连接失败：{e}')
+    
+    try:
+        await SchedulerUtil.close_system_scheduler()
+    except Exception as e:
+        logger.error(f'关闭系统调度器失败：{e}')
 
 
 # 初始化FastAPI对象
 app = FastAPI(
     title=AppConfig.app_name,
-    description=f'{AppConfig.app_name}接口文档',
+    description=f'{AppConfig.app_name}主应用 - 统一入口',
     version=AppConfig.app_version,
     lifespan=lifespan,
-    openapi_url='/openapi.json',
 )
 
 # 挂载子应用
 handle_sub_applications(app)
+
+# 挂载后台管理模块应用
+app.mount("/admin", admin_app, name="admin_module")
+
+# 挂载APP模块应用
+app.mount("/app", app_app, name="app_module")
+
 # 加载中间件处理方法
 handle_middleware(app)
 # 加载全局异常处理方法
 handle_exception(app)
 
 
-# 加载路由列表
-controller_list = [
-    {'router': loginController, 'tags': ['登录模块']},
-    {'router': captchaController, 'tags': ['验证码模块']},
-    {'router': userController, 'tags': ['系统管理-用户管理']},
-    {'router': roleController, 'tags': ['系统管理-角色管理']},
-    {'router': menuController, 'tags': ['系统管理-菜单管理']},
-    {'router': deptController, 'tags': ['系统管理-部门管理']},
-    {'router': postController, 'tags': ['系统管理-岗位管理']},
-    {'router': dictController, 'tags': ['系统管理-字典管理']},
-    {'router': configController, 'tags': ['系统管理-参数管理']},
-    {'router': noticeController, 'tags': ['系统管理-通知公告管理']},
-    {'router': logController, 'tags': ['系统管理-日志管理']},
-    {'router': onlineController, 'tags': ['系统监控-在线用户']},
-    {'router': jobController, 'tags': ['系统监控-定时任务']},
-    {'router': serverController, 'tags': ['系统监控-菜单管理']},
-    {'router': cacheController, 'tags': ['系统监控-缓存监控']},
-    {'router': commonController, 'tags': ['通用模块']},
-    {'router': genController, 'tags': ['代码生成']},
-]
-
-for controller in controller_list:
-    app.include_router(router=controller.get('router'), tags=controller.get('tags'))
+# 路由注册已完成在各自的模块中

@@ -1,7 +1,7 @@
 <template>
   <div class="login">
     <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form">
-      <h3 class="title">vfadmin后台管理系统</h3>
+      <h3 class="title">{{ VITE_APP_TITLE }}</h3>
       <el-form-item prop="username">
         <el-input
           v-model="loginForm.username"
@@ -69,6 +69,8 @@ import { getCodeImg } from "@/api/login";
 import Cookies from "js-cookie";
 import { encrypt, decrypt } from "@/utils/jsencrypt";
 import useUserStore from '@/store/modules/user'
+
+const { VITE_APP_TITLE } = import.meta.env;
 
 const userStore = useUserStore()
 const route = useRoute();

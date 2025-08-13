@@ -132,17 +132,19 @@ class GenTableDao:
         :return: 数据库列表信息对象
         """
         if DataBaseConfig.db_type == 'postgresql':
-            query_sql = """
+                        query_sql = """
+            SELECT
                 table_name as table_name, 
                 table_comment as table_comment, 
                 create_time as create_time, 
                 update_time as update_time
-            from 
-                list_table
-            where 
-                table_name not like 'apscheduler_%' 
-                and table_name not like 'gen_%'
-                and table_name not in (select table_name from gen_table)
+            FROM 
+                information_schema.tables
+            WHERE 
+                table_schema = current_schema()
+                and table_name not like 'apscheduler_%' 
+                and table_name not like 'gen_%' 
+                and table_name not in (select table_name COLLATE utf8_general_ci from gen_table)
             """
         else:
             query_sql = """
@@ -156,7 +158,7 @@ class GenTableDao:
                 table_schema = (select database())
                 and table_name not like 'apscheduler\_%' 
                 and table_name not like 'gen\_%'
-                and table_name not in (select table_name from gen_table)
+                and table_name not in (select table_name COLLATE utf8_general_ci from gen_table)
             """
         if query_object.table_name:
             query_sql += """and lower(table_name) like lower(concat('%', :table_name, '%'))"""
@@ -164,12 +166,12 @@ class GenTableDao:
             query_sql += """and lower(table_comment) like lower(concat('%', :table_comment, '%'))"""
         if query_object.begin_time:
             if DataBaseConfig.db_type == 'postgresql':
-                query_sql += """and create_time::date >= to_date(:begin_time, 'yyyy-MM-dd')"""
+                query_sql += """and create_time::date >= :begin_time::date"""
             else:
                 query_sql += """and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')"""
         if query_object.end_time:
             if DataBaseConfig.db_type == 'postgresql':
-                query_sql += """and create_time::date <= to_date(:end_time, 'yyyy-MM-dd')"""
+                query_sql += """and create_time::date <= :end_time::date"""
             else:
                 query_sql += """and date_format(create_time, '%Y%m%d') >= date_format(:end_time, '%Y%m%d')"""
         query_sql += """order by create_time desc"""
@@ -196,15 +198,16 @@ class GenTableDao:
         """
         if DataBaseConfig.db_type == 'postgresql':
             query_sql = """
-            select
+            SELECT
                 table_name as table_name, 
                 table_comment as table_comment, 
                 create_time as create_time, 
                 update_time as update_time 
-            from 
-                list_table
-            where 
-                table_name not like 'qrtz_%' 
+            FROM 
+                information_schema.tables
+            WHERE 
+                table_schema = current_schema()
+                and table_name not like 'qrtz_%' 
                 and table_name not like 'gen_%' 
                 and table_name = any(:table_names)
             """
