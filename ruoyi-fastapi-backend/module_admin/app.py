@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from config.env import AppConfig
+from exceptions.handle import handle_exception
 from .controller.cache_controller import cacheController
 from .controller.captcha_controller import captchaController
 from .controller.common_controller import commonController
@@ -48,3 +49,6 @@ admin_app.include_router(cacheController, tags=['系统监控-缓存监控'])
 admin_app.include_router(commonController, tags=['通用模块'])
 admin_app.include_router(genController, tags=['代码生成'])
 admin_app.include_router(app_user_admin_router, tags=['APP用户管理'])
+
+# 注册异常处理器到子应用
+handle_exception(admin_app)

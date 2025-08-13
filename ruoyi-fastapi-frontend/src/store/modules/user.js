@@ -65,7 +65,8 @@ const useUserStore = defineStore(
             removeToken()
             resolve()
           }).catch(error => {
-            reject(error)
+            removeToken()
+            resolve()
           })
         })
       }

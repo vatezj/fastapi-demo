@@ -73,6 +73,8 @@ service.interceptors.request.use(config => {
 
 // 响应拦截器
 service.interceptors.response.use(res => {
+  console.log('res', res)
+  console.log('res.data', res.data)
     // 未设置状态码则默认成功状态
     const code = res.data.code || 200;
     // 获取错误信息
@@ -81,18 +83,19 @@ service.interceptors.response.use(res => {
     if (res.request.responseType ===  'blob' || res.request.responseType ===  'arraybuffer') {
       return res.data
     }
+    console.log('code', code)
     if (code === 401) {
       if (!isRelogin.show) {
         isRelogin.show = true;
         ElMessageBox.confirm('登录状态已过期，您可以继续留在该页面，或者重新登录', '系统提示', { confirmButtonText: '重新登录', cancelButtonText: '取消', type: 'warning' }).then(() => {
           isRelogin.show = false;
           useUserStore().logOut().then(() => {
-            location.href = '/index';
+            location.href = '/login';
           })
-      }).catch(() => {
-        isRelogin.show = false;
-      });
-    }
+        }).catch(() => {
+          isRelogin.show = false;
+        });
+      }
       return Promise.reject('无效的会话，或者会话已过期，请重新登录。')
     } else if (code === 500) {
       ElMessage({ message: msg, type: 'error' })
@@ -108,12 +111,34 @@ service.interceptors.response.use(res => {
     }
   },
   error => {
-    console.log('err' + error)
+    console.log('error', error)
     let { message } = error;
+    
+    // 安全地访问 error.response
+    if (error.response && error.response.data) {
+      console.log('error.response.data', error.response.data)
+    }
+    
     if (message == "Network Error") {
       message = "后端接口连接异常";
     } else if (message.includes("timeout")) {
       message = "系统接口请求超时";
+    } else if (message.includes("401")) {
+      message = "登录状态已过期，请重新登录";
+      // 清除token 和用户信息 跳转到登录页
+      if (!isRelogin.show) {
+        isRelogin.show = true;
+        useUserStore().logOut().then(() => {
+          console.log('logOut success')
+          isRelogin.show = false;
+          location.href = '/login';
+        }).catch((logoutError) => {
+          console.error('logOut failed:', logoutError)
+          isRelogin.show = false;
+          // 即使登出失败，也要跳转到登录页
+          location.href = '/login';
+        });
+      }
     } else if (message.includes("Request failed with status code")) {
       message = "系统接口" + message.substr(message.length - 3) + "异常";
     }
