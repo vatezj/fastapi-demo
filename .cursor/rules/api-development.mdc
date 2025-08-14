@@ -1,0 +1,33 @@
+# API 开发规范
+
+## 后端API设计
+- 使用RESTful API设计原则
+- 统一响应格式，参考 [shared/utils/response_util.py](mdc:FastApi-backend/shared/utils/response_util.py)
+- 使用Pydantic进行请求参数验证
+- 实现统一的异常处理机制
+
+## 前端API调用
+- API接口定义: [api/](mdc:FastApi-admin/src/api/)
+- 请求拦截器: [utils/request.js](mdc:FastApi-admin/src/utils/request.js)
+- 统一错误处理
+- 支持请求/响应拦截
+
+## 权限控制
+- 后端权限验证: [module_admin/aspect/interface_auth.py](mdc:FastApi-backend/module_admin/aspect/interface_auth.py)
+- 前端权限指令: [directive/permission/](mdc:FastApi-admin/src/directive/permission/)
+- 路由权限控制: [permission.js](mdc:FastApi-admin/src/permission.js)
+
+## 数据模型
+- 后端DO/VO模型: [module_admin/entity/](mdc:FastApi-backend/module_admin/entity/)
+- 前端表单验证
+- 数据字典管理: [api/system/dict/](mdc:FastApi-admin/src/api/system/dict/)
+
+## 开发流程
+1. 后端定义数据模型和API接口
+2. 前端定义API调用方法
+3. 实现权限控制和数据验证
+4. 测试前后端交互
+description:
+globs:
+alwaysApply: false
+---

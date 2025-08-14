@@ -1,9 +1,9 @@
 import request from '@/utils/request'
-
+const prefix = '/admin'
 // 查询在线用户列表
 export function list(query) {
   return request({
-    url: '/monitor/online/list',
+    url: prefix + '/monitor/online/list',
     method: 'get',
     params: query
   })
@@ -12,7 +12,7 @@ export function list(query) {
 // 强退用户
 export function forceLogout(tokenId) {
   return request({
-    url: '/monitor/online/' + tokenId,
+    url: prefix + '/monitor/online/' + tokenId,
     method: 'delete'
   })
 }

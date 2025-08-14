@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Body
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
@@ -11,6 +11,7 @@ from module_admin.service.login_service import LoginService
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_generator.entity.vo.gen_vo import DeleteGenTableModel, EditGenTableModel, GenTablePageQueryModel
 from module_generator.service.gen_service import GenTableColumnService, GenTableService
+from module_generator.service.module_gen_service import ModuleGenService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
 from utils.page_util import PageResponseModel
@@ -156,3 +157,65 @@ async def sync_db(request: Request, table_name: str, query_db: AsyncSession = De
     logger.info(sync_db_result.message)
 
     return ResponseUtil.success(data=sync_db_result.message)
+
+
+# ==================== 模块化代码生成接口 ====================
+
+@genController.get('/modules/supported', dependencies=[Depends(CheckUserInterfaceAuth('tool:gen:list'))])
+async def get_supported_modules(request: Request):
+    """获取支持的模块类型和前端框架"""
+    try:
+        supported_modules = ModuleGenService.get_supported_modules()
+        logger.info('获取支持的模块类型成功')
+        return ResponseUtil.success(data=supported_modules, msg="获取支持的模块类型成功")
+    except Exception as e:
+        logger.error(f'获取支持的模块类型失败: {e}')
+        return ResponseUtil.error(msg=f"获取支持的模块类型失败: {str(e)}")
+
+
+@genController.get('/modules/config/{module_type}', dependencies=[Depends(CheckUserInterfaceAuth('tool:gen:list'))])
+async def get_module_config_template(request: Request, module_type: str):
+    """获取模块配置模板"""
+    try:
+        config_template = ModuleGenService.get_module_config_template(module_type)
+        logger.info(f'获取模块配置模板成功: {module_type}')
+        return ResponseUtil.success(data=config_template, msg="获取模块配置模板成功")
+    except Exception as e:
+        logger.error(f'获取模块配置模板失败: {e}')
+        return ResponseUtil.error(msg=f"获取模块配置模板失败: {str(e)}")
+
+
+@genController.post('/modules/generate', dependencies=[Depends(CheckUserInterfaceAuth('tool:gen:code'))])
+@Log(title='模块化代码生成', business_type=BusinessType.GENCODE)
+async def generate_module_code(
+    request: Request,
+    table_name: str = Query(..., description="表名"),
+    module_config: dict = Body(..., description="模块配置"),
+    query_db: AsyncSession = Depends(get_db),
+    current_user: CurrentUserModel = Depends(LoginService.get_current_user)
+):
+    """生成模块化代码"""
+    try:
+        # 构建表信息（这里简化处理，实际应该从数据库获取）
+        table_info = {
+            'table_name': table_name,
+            'table_comment': module_config.get('table_comment', f'{table_name}表'),
+            'create_by': current_user.user.user_name,
+            'create_time': datetime.now()
+        }
+        
+        # 调用模块化代码生成服务
+        result = await ModuleGenService.generate_module_code(
+            table_info, module_config, query_db
+        )
+        
+        if result['success']:
+            logger.info(f'模块化代码生成成功: {table_name}')
+            return ResponseUtil.success(data=result, msg="模块化代码生成成功")
+        else:
+            logger.error(f'模块化代码生成失败: {table_name}')
+            return ResponseUtil.error(msg=result['message'])
+            
+    except Exception as e:
+        logger.error(f'模块化代码生成失败: {e}')
+        return ResponseUtil.error(msg=f"模块化代码生成失败: {str(e)}")

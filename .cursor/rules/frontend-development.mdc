@@ -1,0 +1,37 @@
+# Vue.js 前端开发规范
+
+## 技术栈
+- Vue 3 + Composition API
+- Vuex 状态管理
+- Vue Router 路由管理
+- Element UI 组件库
+- Vite 构建工具
+
+## 组件结构
+- **Layout组件**: 位于 [layout/](mdc:FastApi-admin/src/layout/)
+- **页面组件**: 位于 [views/](mdc:FastApi-admin/src/views/)
+- **通用组件**: 位于 [components/](mdc:FastApi-admin/src/components/)
+
+## 代码规范
+- 使用Composition API语法
+- 组件命名使用PascalCase
+- 文件命名使用kebab-case
+- 使用TypeScript类型注解（如果启用）
+
+## 状态管理
+- 用户信息: [store/modules/user.js](mdc:FastApi-admin/src/store/modules/user.js)
+- 权限管理: [store/modules/permission.js](mdc:FastApi-admin/src/store/modules/permission.js)
+- 字典数据: [store/modules/dict.js](mdc:FastApi-admin/src/store/modules/dict.js)
+
+## API管理
+- API接口定义: [api/](mdc:FastApi-admin/src/api/)
+- 请求工具: [utils/request.js](mdc:FastApi-admin/src/utils/request.js)
+- 权限指令: [directive/permission/](mdc:FastApi-admin/src/directive/permission/)
+
+## 路由配置
+- 主路由: [router/index.js](mdc:FastApi-admin/src/router/index.js)
+- 权限控制: [permission.js](mdc:FastApi-admin/src/permission.js)
+description:
+globs:
+alwaysApply: false
+---

@@ -90,6 +90,68 @@ class GenSettings:
             os.makedirs(self.GEN_PATH)
 
 
+class ModuleGenSettings:
+    """
+    模块化代码生成配置
+    """
+
+    # 支持的前端框架
+    frontend_frameworks = ['vue2', 'vue3', 'react']
+    
+    # 模块类型配置
+    module_types = {
+        'admin': {
+            'name': '管理模块',
+            'package': 'module_admin',
+            'description': '系统管理相关功能',
+            'template_path': 'templates/module_admin'
+        },
+        'app': {
+            'name': 'APP模块', 
+            'package': 'module_app',
+            'description': '移动应用相关功能',
+            'template_path': 'templates/module_app'
+        },
+        'business': {
+            'name': '业务模块',
+            'package': 'module_business', 
+            'description': '具体业务功能',
+            'template_path': 'templates/module_business'
+        }
+    }
+    
+    # 前端模块配置
+    frontend_modules = {
+        'admin': {
+            'path': 'src/views/admin',
+            'api_path': 'src/api/admin',
+            'store_path': 'src/store/modules/admin'
+        },
+        'app': {
+            'path': 'src/views/app',
+            'api_path': 'src/api/app', 
+            'store_path': 'src/store/modules/app'
+        },
+        'business': {
+            'path': 'src/views/business',
+            'api_path': 'src/api/business',
+            'store_path': 'src/store/modules/business'
+        }
+    }
+    
+    # 前端模板类型
+    frontend_templates = {
+        'vue3': {
+            'name': 'Vue 3 + Element Plus',
+            'path': 'templates/frontend/vue3'
+        },
+        'vue2': {
+            'name': 'Vue 2 + Element UI',
+            'path': 'templates/frontend/vue2'
+        }
+    }
+
+
 class UploadSettings:
     """
     上传配置

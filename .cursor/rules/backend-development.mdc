@@ -1,0 +1,34 @@
+# FastAPI 后端开发规范
+
+## 架构模式
+- 使用分层架构：Controller -> Service -> DAO -> Entity
+- 遵循依赖注入原则
+- 使用Pydantic进行数据验证
+
+## 模块结构
+- **Controller层**: 处理HTTP请求，参数验证，调用Service
+- **Service层**: 业务逻辑处理
+- **DAO层**: 数据访问对象，数据库操作
+- **Entity层**: 数据模型定义（DO/VO）
+
+## 代码规范
+- 使用类型注解
+- 遵循PEP 8代码风格
+- 使用异步编程（async/await）
+- 统一异常处理机制
+
+## 关键文件
+- 主应用: [app.py](mdc:FastApi-backend/app.py)
+- 数据库配置: [config/database.py](mdc:FastApi-backend/config/database.py)
+- 异常处理: [exceptions/handle.py](mdc:FastApi-backend/exceptions/handle.py)
+- 中间件: [middlewares/](mdc:FastApi-backend/middlewares/)
+
+## 开发流程
+1. 在entity中定义数据模型
+2. 在dao中实现数据访问
+3. 在service中实现业务逻辑
+4. 在controller中暴露API接口
+description:
+globs:
+alwaysApply: false
+---

@@ -1,0 +1,54 @@
+import request from '@/utils/request'
+
+// 查询{{ functionName }}列表
+export function list{{ className }}(query) {
+  return request({
+    url: '/{{ moduleName }}/{{ businessName }}/list',
+    method: 'get',
+    params: query
+  })
+}
+
+// 查询{{ functionName }}详细
+export function get{{ className }}({{ pkColumn.fieldName }}) {
+  return request({
+    url: '/{{ moduleName }}/{{ businessName }}/' + {{ pkColumn.fieldName }},
+    method: 'get'
+  })
+}
+
+// 新增{{ functionName }}
+export function add{{ className }}(data) {
+  return request({
+    url: '/{{ moduleName }}/{{ businessName }}/add',
+    method: 'post',
+    data: data
+  })
+}
+
+// 修改{{ functionName }}
+export function update{{ className }}(data) {
+  return request({
+    url: '/{{ moduleName }}/{{ businessName }}/edit',
+    method: 'put',
+    data: data
+  })
+}
+
+// 删除{{ functionName }}
+export function del{{ className }}({{ pkColumn.fieldName }}) {
+  return request({
+    url: '/{{ moduleName }}/{{ businessName }}/remove',
+    method: 'post',
+    data: { {{ pkColumn.fieldName }}: {{ pkColumn.fieldName }} }
+  })
+}
+
+// 导出{{ functionName }}
+export function export{{ className }}(query) {
+  return request({
+    url: '/{{ moduleName }}/{{ businessName }}/export',
+    method: 'get',
+    params: query
+  })
+}
