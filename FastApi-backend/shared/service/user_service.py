@@ -69,7 +69,7 @@ class UserBaseService(BaseService[UserDO, UserBaseVO]):
         from datetime import datetime
         
         # 检查用户名是否已存在
-        if await self.exists(username=user_data.username):
+        if await self.exists(user_name=user_data.username):
             raise ValueError("用户名已存在")
         
         # 检查邮箱是否已存在
@@ -82,8 +82,8 @@ class UserBaseService(BaseService[UserDO, UserBaseVO]):
         
         # 创建用户实体
         user_entity = UserDO(
-            username=user_data.username,
-            nickname=user_data.nickname or user_data.username,
+            user_name=user_data.username,
+            nick_name=user_data.nickname or user_data.username,
             email=user_data.email,
             phone=user_data.phone,
             password=user_data.password,  # 注意：实际使用时需要加密

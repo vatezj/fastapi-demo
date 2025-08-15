@@ -24,7 +24,7 @@ class BaseDAO(Generic[T]):
         result = await self.db.execute(
             select(self.model).where(
                 and_(
-                    self.model.id == id,
+                    self.model.user_id == id,
                     self.model.del_flag == '0'
                 )
             )
@@ -54,14 +54,8 @@ class BaseDAO(Generic[T]):
     
     async def get_one_by_condition(self, **kwargs) -> Optional[T]:
         """根据条件查询单个实体"""
-        query = select(self.model).where(self.model.del_flag == '0')
-        
-        for key, value in kwargs.items():
-            if hasattr(self.model, key) and value is not None:
-                query = query.where(getattr(self.model, key) == value)
-        
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        result = await self.get_by_condition(**kwargs)
+        return result[0] if result else None
     
     async def create(self, entity: T) -> T:
         """创建实体"""
@@ -90,7 +84,7 @@ class BaseDAO(Generic[T]):
             update(self.model)
             .where(
                 and_(
-                    self.model.id == id,
+                    self.model.user_id == id,
                     self.model.del_flag == '0'
                 )
             )
@@ -129,7 +123,7 @@ class BaseDAO(Generic[T]):
             update(self.model)
             .where(
                 and_(
-                    self.model.id == id,
+                    self.model.user_id == id,
                     self.model.del_flag == '0'
                 )
             )
@@ -162,7 +156,7 @@ class BaseDAO(Generic[T]):
     
     async def count(self, **kwargs) -> int:
         """统计实体数量"""
-        query = select(func.count(self.model.id)).where(self.model.del_flag == '0')
+        query = select(func.count(self.model.user_id)).where(self.model.del_flag == '0')
         
         for key, value in kwargs.items():
             if hasattr(self.model, key) and value is not None:

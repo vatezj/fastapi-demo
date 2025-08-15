@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS `app_user` (
   `phone` varchar(11) DEFAULT '' COMMENT '手机号码',
   `sex` char(1) DEFAULT '0' COMMENT '用户性别（0男 1女 2未知）',
   `avatar` varchar(100) DEFAULT '' COMMENT '用户头像',
-  `password` varchar(50) DEFAULT '' COMMENT '密码',
+  `password` varchar(100) DEFAULT '' COMMENT '密码',
   `status` char(1) DEFAULT '0' COMMENT '帐号状态（0正常 1停用）',
   `login_ip` varchar(128) DEFAULT '' COMMENT '最后登录IP',
   `login_date` datetime DEFAULT NULL COMMENT '最后登录时间',

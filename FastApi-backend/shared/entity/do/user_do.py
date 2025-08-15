@@ -11,8 +11,16 @@ class UserDO(BaseDO):
     
     __tablename__ = "sys_user"
     
+    # 用户ID
+    user_id = Column(
+        Integer, 
+        primary_key=True, 
+        autoincrement=True, 
+        comment="用户ID"
+    )
+    
     # 用户名
-    username = Column(
+    user_name = Column(
         String(50), 
         unique=True, 
         nullable=False, 
@@ -20,7 +28,7 @@ class UserDO(BaseDO):
     )
     
     # 昵称
-    nickname = Column(
+    nick_name = Column(
         String(50), 
         default='', 
         comment="昵称"
@@ -69,6 +77,13 @@ class UserDO(BaseDO):
         comment="状态"
     )
     
+    # 删除标志 (0: 存在, 2: 删除)
+    del_flag = Column(
+        String(1), 
+        default='0', 
+        comment="删除标志"
+    )
+    
     # 最后登录时间
     login_date = Column(
         DateTime, 
@@ -101,4 +116,4 @@ class UserDO(BaseDO):
     )
     
     def __repr__(self):
-        return f"<User(username={self.username}, email={self.email})>" 
+        return f"<User(user_id={self.user_id}, user_name={self.user_name}, email={self.email})>" 

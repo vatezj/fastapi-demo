@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from config.env import AppConfig
 from .controller.app_user_controller import app_user_router
-from .controller.auth_controller import router as auth_router
+
 from .controller.user_controller import router as user_router
 from .controller.admin_interface_controller import admin_interface_router
 
@@ -16,8 +16,11 @@ app_app = FastAPI(
 )
 
 # 注册APP模块的路由
-app_app.include_router(auth_router, prefix="/v1")
+
+# 用户相关路由 - 移动端接口
 app_app.include_router(user_router, prefix="/v1")
+
+# APP用户管理路由 - 移动端接口
 app_app.include_router(app_user_router, prefix="/v1")
 
 # 注册后台管理接口路由 - 专门为后台管理系统提供

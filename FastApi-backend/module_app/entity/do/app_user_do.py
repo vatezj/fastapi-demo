@@ -16,7 +16,7 @@ class AppUser(Base):
     phone = Column(String(11), default='', comment='手机号码')
     sex = Column(String(1), default='0', comment='用户性别（0男 1女 2未知）')
     avatar = Column(String(100), default='', comment='用户头像')
-    password = Column(String(50), default='', comment='密码')
+    password = Column(String(100), default='', comment='密码')
     status = Column(String(1), default='0', comment='帐号状态（0正常 1停用）')
     login_ip = Column(String(128), default='', comment='最后登录IP')
     login_date = Column(DateTime, default=None, comment='最后登录时间')

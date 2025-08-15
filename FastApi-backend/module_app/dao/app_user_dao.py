@@ -4,6 +4,7 @@ from sqlalchemy import select, update, delete, and_, or_, desc, func
 from sqlalchemy.orm import selectinload
 from ..entity.do.app_user_do import AppUser, AppUserProfile, AppLoginLog
 from ..entity.vo.app_user_vo import AppUserQueryModel, AppLoginLogQueryModel
+from datetime import datetime, timedelta
 
 
 class AppUserDao:
@@ -256,6 +257,93 @@ class AppUserDao:
             select(func.count(AppUser.user_id)).where(and_(*conditions))
         )
         return result.scalar() > 0
+    
+    @staticmethod
+    async def get_users(db: AsyncSession, filters: Dict[str, Any] = None) -> List[AppUser]:
+        """根据条件获取用户列表"""
+        query = select(AppUser)
+        
+        if filters:
+            conditions = []
+            for key, value in filters.items():
+                if value is not None:
+                    if key == 'user_name' and value:
+                        conditions.append(AppUser.user_name.like(f'%{value}%'))
+                    elif key == 'email' and value:
+                        conditions.append(AppUser.email.like(f'%{value}%'))
+                    elif key == 'phone' and value:
+                        conditions.append(AppUser.phone.like(f'%{value}%'))
+                    elif key == 'status' and value:
+                        conditions.append(AppUser.status == value)
+                    elif key == 'sex' and value:
+                        conditions.append(AppUser.sex == value)
+            
+            if conditions:
+                query = query.where(and_(*conditions))
+        
+        query = query.order_by(desc(AppUser.create_time))
+        result = await db.execute(query)
+        return result.scalars().all()
+    
+    @staticmethod
+    async def get_users_page(
+        db: AsyncSession, 
+        page_num: int, 
+        page_size: int,
+        user_name: str = None,
+        email: str = None,
+        phone: str = None,
+        status: str = None,
+        sex: str = None
+    ) -> Dict[str, Any]:
+        """分页获取用户列表"""
+        # 构建查询条件
+        conditions = []
+        if user_name:
+            conditions.append(AppUser.user_name.like(f'%{user_name}%'))
+        if email:
+            conditions.append(AppUser.email.like(f'%{email}%'))
+        if phone:
+            conditions.append(AppUser.phone.like(f'%{phone}%'))
+        if status:
+            conditions.append(AppUser.status == status)
+        if sex:
+            conditions.append(AppUser.sex == sex)
+        
+        # 获取总数
+        count_query = select(func.count(AppUser.user_id))
+        if conditions:
+            count_query = count_query.where(and_(*conditions))
+        
+        total_result = await db.execute(count_query)
+        total = total_result.scalar()
+        
+        # 获取分页数据
+        query = select(AppUser)
+        if conditions:
+            query = query.where(and_(*conditions))
+        
+        query = query.order_by(desc(AppUser.create_time))
+        query = query.offset((page_num - 1) * page_size).limit(page_size)
+        
+        result = await db.execute(query)
+        users = result.scalars().all()
+        
+        return {
+            'rows': users,
+            'total': total,
+            'page_num': page_num,
+            'page_size': page_size,
+            'total_pages': (total + page_size - 1) // page_size
+        }
+    
+    @staticmethod
+    async def get_user_profile(db: AsyncSession, user_id: int) -> Optional[AppUserProfile]:
+        """获取用户档案信息"""
+        result = await db.execute(
+            select(AppUserProfile).where(AppUserProfile.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
 
 
 class AppLoginLogDao:
@@ -269,6 +357,80 @@ class AppLoginLogDao:
         await db.commit()
         await db.refresh(log)
         return log
+    
+    @staticmethod
+    async def get_login_logs(db: AsyncSession, filters: Dict[str, Any] = None) -> List[AppLoginLog]:
+        """根据条件获取登录日志"""
+        query = select(AppLoginLog)
+        
+        if filters:
+            conditions = []
+            for key, value in filters.items():
+                if value is not None:
+                    if key == 'user_name' and value:
+                        conditions.append(AppLoginLog.user_name.like(f'%{value}%'))
+                    elif key == 'status' and value:
+                        conditions.append(AppLoginLog.status == value)
+                    elif key == 'start_time' and value:
+                        conditions.append(AppLoginLog.login_time >= value)
+                    elif key == 'end_time' and value:
+                        conditions.append(AppLoginLog.login_time <= value)
+            
+            if conditions:
+                query = query.where(and_(*conditions))
+        
+        query = query.order_by(desc(AppLoginLog.login_time))
+        result = await db.execute(query)
+        return result.scalars().all()
+    
+    @staticmethod
+    async def get_login_logs_page(
+        db: AsyncSession,
+        page_num: int,
+        page_size: int,
+        user_name: str = None,
+        status: str = None,
+        start_time: datetime = None,
+        end_time: datetime = None
+    ) -> Dict[str, Any]:
+        """分页获取登录日志"""
+        # 构建查询条件
+        conditions = []
+        if user_name:
+            conditions.append(AppLoginLog.user_name.like(f'%{user_name}%'))
+        if status:
+            conditions.append(AppLoginLog.status == status)
+        if start_time:
+            conditions.append(AppLoginLog.login_time >= start_time)
+        if end_time:
+            conditions.append(AppLoginLog.login_time <= end_time)
+        
+        # 获取总数
+        count_query = select(func.count(AppLoginLog.log_id))
+        if conditions:
+            count_query = count_query.where(and_(*conditions))
+        
+        total_result = await db.execute(count_query)
+        total = total_result.scalar()
+        
+        # 获取分页数据
+        query = select(AppLoginLog)
+        if conditions:
+            query = query.where(and_(*conditions))
+        
+        query = query.order_by(desc(AppLoginLog.login_time))
+        query = query.offset((page_num - 1) * page_size).limit(page_size)
+        
+        result = await db.execute(query)
+        logs = result.scalars().all()
+        
+        return {
+            'rows': logs,
+            'total': total,
+            'page_num': page_num,
+            'page_size': page_size,
+            'total_pages': (total + page_size - 1) // page_size
+        }
     
     @staticmethod
     async def get_login_log_list(db: AsyncSession, query: AppLoginLogQueryModel, page_num: int = 1, page_size: int = 10) -> List[AppLoginLog]:
@@ -334,7 +496,6 @@ class AppLoginLogDao:
     @staticmethod
     async def clean_login_logs(db: AsyncSession, days: int = 30) -> bool:
         """清理指定天数前的登录日志"""
-        from datetime import datetime, timedelta
         clean_date = datetime.now() - timedelta(days=days)
         
         result = await db.execute(

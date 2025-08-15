@@ -4,7 +4,7 @@
 """
 
 from typing import List, Optional
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from shared.dao.base_dao import BaseDAO
 from shared.entity.do.user_do import UserDO
@@ -17,7 +17,7 @@ class UserDAO(BaseDAO[UserDO]):
     
     async def get_by_username(self, username: str) -> Optional[UserDO]:
         """根据用户名获取用户"""
-        return await self.get_one_by_condition(username=username)
+        return await self.get_one_by_condition(user_name=username)
     
     async def get_by_email(self, email: str) -> Optional[UserDO]:
         """根据邮箱获取用户"""
@@ -34,7 +34,7 @@ class UserDAO(BaseDAO[UserDO]):
             and_(
                 UserDO.del_flag == '0',
                 or_(
-                    UserDO.username == username_or_email,
+                    UserDO.user_name == username_or_email,
                     UserDO.email == username_or_email
                 )
             )
@@ -52,41 +52,37 @@ class UserDAO(BaseDAO[UserDO]):
     
     async def search_users(self, keyword: str, page: int = 1, size: int = 20) -> tuple[List[UserDO], int]:
         """搜索用户"""
-        query = select(UserDO).where(
-            and_(
-                UserDO.del_flag == '0',
-                or_(
-                    UserDO.username.contains(keyword),
-                    UserDO.nickname.contains(keyword),
-                    UserDO.email.contains(keyword),
-                    UserDO.phone.contains(keyword)
-                )
-            )
+        # 构建搜索条件
+        search_conditions = or_(
+            UserDO.user_name.like(f'%{keyword}%'),
+            UserDO.nick_name.like(f'%{keyword}%'),
+            UserDO.email.like(f'%{keyword}%'),
+            UserDO.phone.like(f'%{keyword}%')
         )
         
         # 获取总数
-        count_query = select(func.count(UserDO.id)).where(
+        count_query = select(func.count(UserDO.user_id)).where(
             and_(
                 UserDO.del_flag == '0',
-                or_(
-                    UserDO.username.contains(keyword),
-                    UserDO.nickname.contains(keyword),
-                    UserDO.email.contains(keyword),
-                    UserDO.phone.contains(keyword)
-                )
+                search_conditions
             )
         )
+        total_result = await self.db.execute(count_query)
+        total = total_result.scalar()
         
-        total = await self.db.scalar(count_query) or 0
+        # 获取分页数据
+        query = select(UserDO).where(
+            and_(
+                UserDO.del_flag == '0',
+                search_conditions
+            )
+        ).order_by(UserDO.create_time.desc())
         
-        # 分页查询
-        offset = (page - 1) * size
-        query = query.offset(offset).limit(size)
-        
+        query = query.offset((page - 1) * size).limit(size)
         result = await self.db.execute(query)
-        items = result.scalars().all()
+        users = result.scalars().all()
         
-        return items, total
+        return users, total
     
     async def update_login_info(self, user_id: int, login_ip: str) -> bool:
         """更新用户登录信息"""
@@ -125,7 +121,7 @@ class UserDAO(BaseDAO[UserDO]):
         query = select(UserDO).where(
             and_(
                 UserDO.del_flag == '0',
-                UserDO.id.in_(user_ids)
+                UserDO.user_id.in_(user_ids)
             )
         )
         

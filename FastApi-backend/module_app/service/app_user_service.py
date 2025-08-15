@@ -20,7 +20,7 @@ class AppUserService:
     @staticmethod
     async def create_user(
         user_data: AppAddUserModel,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession
     ) -> ResponseUtil:
         """创建APP用户"""
         try:
@@ -37,7 +37,7 @@ class AppUserService:
                 return ResponseUtil.error("邮箱已存在")
             
             # 加密密码
-            hashed_password = PwdUtil.hash_password(user_data.password)
+            hashed_password = PwdUtil.get_password_hash(user_data.password)
             
             # 准备用户数据
             user_dict = {
@@ -87,7 +87,7 @@ class AppUserService:
     @staticmethod
     async def update_user(
         user_data: AppEditUserModel,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession
     ) -> ResponseUtil:
         """更新APP用户信息"""
         try:
@@ -105,220 +105,98 @@ class AppUserService:
                 return ResponseUtil.error("邮箱已被其他用户使用")
             
             # 准备更新数据
-            user_update_data = {}
-            if user_data.nick_name is not None:
-                user_update_data['nick_name'] = user_data.nick_name
-            if user_data.email is not None:
-                user_update_data['email'] = user_data.email
-            if user_data.phone is not None:
-                user_update_data['phone'] = user_data.phone
-            if user_data.sex is not None:
-                user_update_data['sex'] = user_data.sex
-            if user_data.avatar is not None:
-                user_update_data['avatar'] = user_data.avatar
-            if user_data.status is not None:
-                user_update_data['status'] = user_data.status
-            if user_data.remark is not None:
-                user_update_data['remark'] = user_data.remark
-            user_update_data['update_time'] = datetime.now()
+            update_dict = {
+                'nick_name': user_data.nick_name,
+                'email': user_data.email,
+                'phone': user_data.phone,
+                'sex': user_data.sex,
+                'avatar': user_data.avatar,
+                'remark': user_data.remark,
+                'update_time': datetime.now()
+            }
             
-            # 更新用户信息
-            if user_update_data:
-                await AppUserDao.update_user(db, user_data.user_id, user_update_data)
+            # 移除None值
+            update_dict = {k: v for k, v in update_dict.items() if v is not None}
             
-            # 更新或创建用户档案
-            profile_update_data = {}
-            if user_data.real_name is not None:
-                profile_update_data['real_name'] = user_data.real_name
-            if user_data.id_card is not None:
-                profile_update_data['id_card'] = user_data.id_card
-            if user_data.birthday is not None:
-                profile_update_data['birthday'] = user_data.birthday
-            if user_data.address is not None:
-                profile_update_data['address'] = user_data.address
-            if user_data.education is not None:
-                profile_update_data['education'] = user_data.education
-            if user_data.occupation is not None:
-                profile_update_data['occupation'] = user_data.occupation
-            if user_data.income_level is not None:
-                profile_update_data['income_level'] = user_data.income_level
-            if user_data.marital_status is not None:
-                profile_update_data['marital_status'] = user_data.marital_status
-            if user_data.emergency_contact is not None:
-                profile_update_data['emergency_contact'] = user_data.emergency_contact
-            if user_data.emergency_phone is not None:
-                profile_update_data['emergency_phone'] = user_data.emergency_phone
+            # 更新用户
+            success = await AppUserDao.update_user(db, user_data.user_id, update_dict)
             
-            if profile_update_data:
-                profile_update_data['update_time'] = datetime.now()
-                
-                # 检查是否已有档案，如果没有则创建
-                existing_profile = await AppUserDao.get_user_with_profile(db, user_data.user_id)
-                if existing_profile and existing_profile['profile']:
-                    await AppUserDao.update_user_profile(db, user_data.user_id, profile_update_data)
-                else:
-                    profile_update_data['user_id'] = user_data.user_id
-                    profile_update_data['create_time'] = datetime.now()
-                    await AppUserDao.create_user_profile(db, profile_update_data)
-            
-            return ResponseUtil.success("用户信息更新成功")
-            
-        except Exception as e:
-            return ResponseUtil.error(f"更新用户信息失败: {str(e)}")
-    
-    @staticmethod
-    async def delete_user(
-        user_ids: List[int],
-        db: AsyncSession = Depends(get_db)
-    ) -> ResponseUtil:
-        """删除APP用户"""
-        try:
-            if not user_ids:
-                return ResponseUtil.error("请选择要删除的用户")
-            
-            # 批量删除用户
-            success = await AppUserDao.delete_users(db, user_ids)
             if success:
-                return ResponseUtil.success("用户删除成功")
+                return ResponseUtil.success("用户更新成功")
             else:
-                return ResponseUtil.error("用户删除失败")
+                return ResponseUtil.error("用户更新失败")
                 
         except Exception as e:
-            return ResponseUtil.error(f"删除用户失败: {str(e)}")
-    
-    @staticmethod
-    async def change_user_status(
-        user_data: AppUserStatusModel,
-        db: AsyncSession = Depends(get_db)
-    ) -> ResponseUtil:
-        """修改用户状态"""
-        try:
-            # 检查用户是否存在
-            user = await AppUserDao.get_user_by_id(db, user_data.user_id)
-            if not user:
-                return ResponseUtil.error("用户不存在")
-            
-            # 更新用户状态
-            success = await AppUserDao.update_user_status(db, user_data.user_id, user_data.status)
-            if success:
-                status_text = "启用" if user_data.status == '0' else "停用"
-                return ResponseUtil.success(f"用户{status_text}成功")
-            else:
-                return ResponseUtil.error("状态修改失败")
-                
-        except Exception as e:
-            return ResponseUtil.error(f"修改用户状态失败: {str(e)}")
-    
-    @staticmethod
-    async def reset_user_password(
-        password_data: AppResetPasswordModel,
-        db: AsyncSession = Depends(get_db)
-    ) -> ResponseUtil:
-        """重置用户密码"""
-        try:
-            # 检查用户是否存在
-            user = await AppUserDao.get_user_by_id(db, password_data.user_id)
-            if not user:
-                return ResponseUtil.error("用户不存在")
-            
-            # 加密新密码
-            hashed_password = PwdUtil.hash_password(password_data.password)
-            
-            # 更新密码
-            success = await AppUserDao.update_user_password(db, password_data.user_id, hashed_password)
-            if success:
-                return ResponseUtil.success("密码重置成功")
-            else:
-                return ResponseUtil.error("密码重置失败")
-                
-        except Exception as e:
-            return ResponseUtil.error(f"重置密码失败: {str(e)}")
+            return ResponseUtil.error(f"更新用户失败: {str(e)}")
     
     @staticmethod
     async def get_user_list(
-        query: AppUserPageQueryModel,
-        db: AsyncSession = Depends(get_db)
+        query_model: AppUserQueryModel,
+        db: AsyncSession
     ) -> ResponseUtil:
-        """获取用户列表（分页）"""
+        """获取APP用户列表"""
         try:
+            # 构建查询条件
+            filters = {}
+            if query_model.user_name:
+                filters['user_name'] = query_model.user_name
+            if query_model.email:
+                filters['email'] = query_model.email
+            if query_model.phone:
+                filters['phone'] = query_model.phone
+            if query_model.status:
+                filters['status'] = query_model.status
+            if query_model.sex:
+                filters['sex'] = query_model.sex
+            
             # 获取用户列表
-            users = await AppUserDao.get_user_list(db, query)
+            users = await AppUserDao.get_users(db, filters)
             
-            # 获取总数
-            total = await AppUserDao.get_user_count(db, query)
-            
-            # 计算分页信息
-            page_info = {
-                'page_num': query.page_num,
-                'page_size': query.page_size,
-                'total': total,
-                'pages': (total + query.page_size - 1) // query.page_size
-            }
-            
-            return ResponseUtil.success("获取用户列表成功", data={
-                'list': users,
-                'page_info': page_info
-            })
+            return ResponseUtil.success("获取用户列表成功", data=users)
             
         except Exception as e:
             return ResponseUtil.error(f"获取用户列表失败: {str(e)}")
     
     @staticmethod
-    async def get_user_detail(
-        user_id: int,
-        db: AsyncSession = Depends(get_db)
+    async def get_user_page(
+        page_query: AppUserPageQueryModel,
+        db: AsyncSession
     ) -> ResponseUtil:
-        """获取用户详情"""
+        """分页获取APP用户列表"""
         try:
-            user_info = await AppUserDao.get_user_with_profile(db, user_id)
-            if not user_info:
-                return ResponseUtil.error("用户不存在")
+            # 获取分页数据
+            result = await AppUserDao.get_users_page(
+                db, 
+                page_query.page_num, 
+                page_query.page_size, 
+                page_query.user_name,
+                page_query.email,
+                page_query.phone,
+                page_query.status,
+                page_query.sex
+            )
             
-            return ResponseUtil.success("获取用户详情成功", data=user_info)
+            return ResponseUtil.success("获取用户分页成功", data=result)
             
         except Exception as e:
-            return ResponseUtil.error(f"获取用户详情失败: {str(e)}")
+            return ResponseUtil.error(f"获取用户分页失败: {str(e)}")
     
     @staticmethod
-    async def app_login(
-        login_data: AppLoginModel,
-        request,
-        db: AsyncSession = Depends(get_db)
+    async def get_user_detail(
+        user_id: int,
+        db: AsyncSession
     ) -> ResponseUtil:
-        """APP用户登录"""
+        """获取APP用户详情"""
         try:
-            # 验证用户名和密码
-            user = await AppUserDao.get_user_by_username(db, login_data.user_name)
+            # 获取用户信息
+            user = await AppUserDao.get_user_by_id(db, user_id)
             if not user:
-                return ResponseUtil.error("用户名或密码错误")
+                return ResponseUtil.error("用户不存在")
             
-            if user.status != '0':
-                return ResponseUtil.error("用户已被停用")
+            # 获取用户档案信息
+            profile = await AppUserDao.get_user_profile(db, user_id)
             
-            if not PwdUtil.verify_password(login_data.password, user.password):
-                return ResponseUtil.error("用户名或密码错误")
-            
-            # 获取客户端信息
-            client_ip = request.client.host if request.client else "unknown"
-            user_agent = request.headers.get("user-agent", "unknown")
-            
-            # 更新登录信息
-            await AppUserDao.update_login_info(db, user.user_id, client_ip)
-            
-            # 记录登录日志
-            log_data = {
-                'user_name': user.user_name,
-                'ipaddr': client_ip,
-                'login_location': '',  # 可以通过IP地址解析地理位置
-                'browser': user_agent.get('browser', ''),
-                'os': user_agent.get('os', ''),
-                'status': '0',  # 登录成功
-                'msg': '登录成功',
-                'login_time': datetime.now()
-            }
-            await AppLoginLogDao.create_login_log(db, log_data)
-            
-            # 返回用户信息（不包含密码）
+            # 构建返回数据
             user_info = {
                 'user_id': user.user_id,
                 'user_name': user.user_name,
@@ -328,7 +206,145 @@ class AppUserService:
                 'sex': user.sex,
                 'avatar': user.avatar,
                 'status': user.status,
-                'login_ip': client_ip,
+                'login_ip': user.login_ip,
+                'login_date': user.login_date,
+                'create_time': user.create_time,
+                'update_time': user.update_time,
+                'remark': user.remark,
+                'profile': profile
+            }
+            
+            return ResponseUtil.success("获取用户详情成功", data=user_info)
+            
+        except Exception as e:
+            return ResponseUtil.error(f"获取用户详情失败: {str(e)}")
+    
+    @staticmethod
+    async def delete_user(
+        delete_model: AppDeleteUserModel,
+        db: AsyncSession
+    ) -> ResponseUtil:
+        """删除APP用户"""
+        try:
+            # 检查用户是否存在
+            user = await AppUserDao.get_user_by_id(db, delete_model.user_id)
+            if not user:
+                return ResponseUtil.error("用户不存在")
+            
+            # 删除用户
+            success = await AppUserDao.delete_user(db, delete_model.user_id)
+            
+            if success:
+                return ResponseUtil.success("用户删除成功")
+            else:
+                return ResponseUtil.error("用户删除失败")
+                
+        except Exception as e:
+            return ResponseUtil.error(f"删除用户失败: {str(e)}")
+    
+    @staticmethod
+    async def reset_password(
+        reset_model: AppResetPasswordModel,
+        db: AsyncSession
+    ) -> ResponseUtil:
+        """重置APP用户密码"""
+        try:
+            # 检查用户是否存在
+            user = await AppUserDao.get_user_by_id(db, reset_model.user_id)
+            if not user:
+                return ResponseUtil.error("用户不存在")
+            
+            # 加密新密码
+            hashed_password = PwdUtil.get_password_hash(reset_model.new_password)
+            
+            # 更新密码
+            success = await AppUserDao.update_user(db, reset_model.user_id, {
+                'password': hashed_password,
+                'update_time': datetime.now()
+            })
+            
+            if success:
+                return ResponseUtil.success("密码重置成功")
+            else:
+                return ResponseUtil.error("密码重置失败")
+                
+        except Exception as e:
+            return ResponseUtil.error(f"重置密码失败: {str(e)}")
+    
+    @staticmethod
+    async def change_user_status(
+        status_model: AppUserStatusModel,
+        db: AsyncSession
+    ) -> ResponseUtil:
+        """更改APP用户状态"""
+        try:
+            # 检查用户是否存在
+            user = await AppUserDao.get_user_by_id(db, status_model.user_id)
+            if not user:
+                return ResponseUtil.error("用户不存在")
+            
+            # 更新状态
+            success = await AppUserDao.update_user(db, status_model.user_id, {
+                'status': status_model.status,
+                'update_time': datetime.now()
+            })
+            
+            if success:
+                status_text = "启用" if status_model.status == "0" else "停用"
+                return ResponseUtil.success(f"用户{status_text}成功")
+            else:
+                return ResponseUtil.error("更改用户状态失败")
+                
+        except Exception as e:
+            return ResponseUtil.error(f"更改用户状态失败: {str(e)}")
+    
+    @staticmethod
+    async def app_login(
+        login_data: AppLoginModel,
+        request,
+        db: AsyncSession
+    ) -> ResponseUtil:
+        """APP用户登录"""
+        try:
+            # 验证用户名和密码
+            user = await AppUserDao.get_user_by_username(db, login_data.user_name)
+            if not user:
+                return ResponseUtil.error("用户名或密码错误")
+            
+            if not PwdUtil.verify_password(login_data.password, user.password):
+                return ResponseUtil.error("用户名或密码错误")
+            
+            if user.status != "0":
+                return ResponseUtil.error("用户已被停用")
+            
+            # 更新登录信息
+            await AppUserDao.update_user(db, user.user_id, {
+                'login_ip': request.client.host,
+                'login_date': datetime.now(),
+                'update_time': datetime.now()
+            })
+            
+            # 记录登录日志
+            log_data = {
+                'user_name': user.user_name,
+                'ipaddr': request.client.host,
+                'status': '0',
+                'msg': '登录成功',
+                'login_time': datetime.now()
+            }
+            await AppLoginLogDao.create_login_log(db, log_data)
+            
+            # 构建用户信息
+            user_info = {
+                'user_id': user.user_id,
+                'user_name': user.user_name,
+                'nick_name': user.nick_name,
+                'email': user.email,
+                'phone': user.phone,
+                'sex': user.sex,
+                'avatar': user.avatar,
+                'status': user.status,
+                'login_ip': request.client.host,
                 'login_date': datetime.now()
             }
             
@@ -340,7 +356,7 @@ class AppUserService:
     @staticmethod
     async def app_register(
         register_data: AppRegisterModel,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession
     ) -> ResponseUtil:
         """APP用户注册"""
         try:
@@ -366,7 +382,7 @@ class AppUserService:
                 'nick_name': register_data.nick_name,
                 'email': register_data.email,
                 'phone': register_data.phone,
-                'password': PwdUtil.hash_password(register_data.password),
+                'password': PwdUtil.get_password_hash(register_data.password),
                 'status': '0',
                 'create_time': datetime.now()
             }
@@ -381,88 +397,62 @@ class AppUserService:
     @staticmethod
     async def send_sms_code(
         sms_data: AppSmsCodeModel,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession
     ) -> ResponseUtil:
         """发送短信验证码"""
         try:
-            # 这里应该集成短信服务商的API
-            # 目前只是模拟发送
-            code = "123456"  # 实际应该是随机生成的验证码
-            
-            # 可以将验证码存储到Redis中，设置过期时间
-            # await redis.set(f"sms_code:{sms_data.phone}:{sms_data.type}", code, ex=300)
-            
-            return ResponseUtil.success("验证码发送成功", data={'code': code})
+            # 这里应该集成短信服务
+            # 目前只是模拟发送成功
+            return ResponseUtil.success("验证码发送成功", data={'code': '123456'})
             
         except Exception as e:
             return ResponseUtil.error(f"发送验证码失败: {str(e)}")
-
-
-class AppLoginLogService:
-    """APP登录日志服务层"""
     
     @staticmethod
-    async def get_login_log_list(
-        query: AppLoginLogPageQueryModel,
-        db: AsyncSession = Depends(get_db)
+    async def get_login_logs(
+        query_model: AppLoginLogQueryModel,
+        db: AsyncSession
     ) -> ResponseUtil:
-        """获取登录日志列表（分页）"""
+        """获取登录日志"""
         try:
-            # 获取登录日志列表
-            logs = await AppLoginLogDao.get_login_log_list(
-                db, query, query.page_num, query.page_size
-            )
+            # 构建查询条件
+            filters = {}
+            if query_model.user_name:
+                filters['user_name'] = query_model.user_name
+            if query_model.status:
+                filters['status'] = query_model.status
+            if query_model.start_time:
+                filters['start_time'] = query_model.start_time
+            if query_model.end_time:
+                filters['end_time'] = query_model.end_time
             
-            # 获取总数
-            total = await AppLoginLogDao.get_login_log_count(db, query)
+            # 获取登录日志
+            logs = await AppLoginLogDao.get_login_logs(db, filters)
             
-            # 计算分页信息
-            page_info = {
-                'page_num': query.page_num,
-                'page_size': query.page_size,
-                'total': total,
-                'pages': (total + query.page_size - 1) // query.page_size
-            }
-            
-            return ResponseUtil.success("获取登录日志成功", data={
-                'list': logs,
-                'page_info': page_info
-            })
+            return ResponseUtil.success("获取登录日志成功", data=logs)
             
         except Exception as e:
             return ResponseUtil.error(f"获取登录日志失败: {str(e)}")
     
     @staticmethod
-    async def delete_login_logs(
-        log_ids: List[int],
-        db: AsyncSession = Depends(get_db)
+    async def get_login_logs_page(
+        page_query: AppLoginLogPageQueryModel,
+        db: AsyncSession
     ) -> ResponseUtil:
-        """删除登录日志"""
+        """分页获取登录日志"""
         try:
-            if not log_ids:
-                return ResponseUtil.error("请选择要删除的日志")
+            # 获取分页数据
+            result = await AppLoginLogDao.get_login_logs_page(
+                db,
+                page_query.page_num,
+                page_query.page_size,
+                page_query.user_name,
+                page_query.status,
+                page_query.start_time,
+                page_query.end_time
+            )
             
-            success = await AppLoginLogDao.delete_login_logs(db, log_ids)
-            if success:
-                return ResponseUtil.success("日志删除成功")
-            else:
-                return ResponseUtil.error("日志删除失败")
-                
+            return ResponseUtil.success("获取登录日志分页成功", data=result)
+            
         except Exception as e:
-            return ResponseUtil.error(f"删除日志失败: {str(e)}")
-    
-    @staticmethod
-    async def clean_login_logs(
-        days: int = 30,
-        db: AsyncSession = Depends(get_db)
-    ) -> ResponseUtil:
-        """清理登录日志"""
-        try:
-            success = await AppLoginLogDao.clean_login_logs(db, days)
-            if success:
-                return ResponseUtil.success(f"成功清理{days}天前的登录日志")
-            else:
-                return ResponseUtil.error("清理登录日志失败")
-                
-        except Exception as e:
-            return ResponseUtil.error(f"清理登录日志失败: {str(e)}")
+            return ResponseUtil.error(f"获取登录日志分页失败: {str(e)}")
