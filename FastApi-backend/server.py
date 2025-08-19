@@ -8,6 +8,7 @@ from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
 from module_admin.app import admin_app
 from module_app.app import app_app
+from module_yozuan.app import yozuan_app
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
 from utils.log_util import logger
@@ -95,6 +96,9 @@ app.mount("/admin", admin_app, name="admin_module")
 
 # 挂载APP模块应用
 app.mount("/app", app_app, name="app_module")
+
+# 挂载游赚模块应用
+app.mount("/yozuan", yozuan_app, name="yozuan_module")
 
 # 加载中间件处理方法
 handle_middleware(app)
