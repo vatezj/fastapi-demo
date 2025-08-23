@@ -1,5 +1,22 @@
 # FastAPI 后端架构与开发指南
 
+![Python](https://img.shields.io/badge/python-v3.9+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115.8-green.svg)
+![UV](https://img.shields.io/badge/UV-package%20manager-purple.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
+## 📋 目录
+
+- [项目概述](#项目概述)
+- [技术栈](#技术栈)
+- [项目结构](#项目结构)
+- [快速开始](#快速开始)
+- [UV 包管理器使用指南](#uv-包管理器使用指南)
+- [开发指南](#开发指南)
+- [部署指南](#部署指南)
+- [测试指南](#测试指南)
+- [贡献指南](#贡献指南)
+
 ## 项目概述
 
 FastAPI 后端是一个基于 FastAPI 框架的现代化 Web 应用后端，采用模块化架构设计，支持异步编程、自动 API 文档生成、权限控制等特性。
@@ -7,6 +24,7 @@ FastAPI 后端是一个基于 FastAPI 框架的现代化 Web 应用后端，采�
 ## 技术栈
 
 - **Web 框架**: FastAPI
+- **包管理器**: UV (超快的 Python 包管理器)
 - **数据库**: SQLAlchemy (异步)
 - **ORM**: SQLAlchemy ORM
 - **数据库**: PostgreSQL / MySQL
@@ -16,14 +34,19 @@ FastAPI 后端是一个基于 FastAPI 框架的现代化 Web 应用后端，采�
 - **权限控制**: JWT + 角色权限
 - **代码生成**: 模块化代码生成器
 - **日志**: 结构化日志系统
+- **代码质量**: Ruff, Black, isort, mypy
 
 ## 项目结构
 
 ```
 FastApi-backend/
+├── pyproject.toml                  # 项目配置和依赖管理
+├── uv.lock                         # 依赖锁定文件
+├── .venv/                          # UV 虚拟环境
 ├── app.py                          # 主应用入口
 ├── server.py                       # 服务器启动脚本
 ├── start_app.py                    # 应用启动脚本
+├── run_with_uv.sh                  # UV 启动脚本
 ├── config/                         # 配置文件
 │   ├── env.py                      # 环境配置
 │   ├── database.py                 # 数据库配置
@@ -174,21 +197,45 @@ FastApi-backend/
 - **sys_role_menu**: 角色菜单关联
 - **sys_role_dept**: 角色部门关联
 
-## 开发指南
+## 快速开始
 
 ### 1. 环境要求
 
-- Python 3.8+
+- Python 3.9+
 - PostgreSQL 12+ / MySQL 8.0+
 - Redis 6.0+
+- UV (Python 包管理器)
 
-### 2. 安装依赖
+### 2. 安装 UV
+
+如果还没有安装 UV，请先安装：
 
 ```bash
-pip install -r requirements.txt
+# macOS/Linux 
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 或者使用 pip
+pip install uv
+
+# 验证安装
+uv --version
 ```
 
-### 3. 配置环境
+### 3. 项目初始化
+
+```bash
+# 克隆项目
+git clone <repository-url>
+cd FastApi-backend
+
+# 同步安装所有依赖（包括开发依赖）
+uv sync
+
+# 或者只安装生产依赖
+uv sync --no-dev
+```
+
+### 4. 配置环境
 
 ```bash
 # 复制环境配置文件
@@ -198,17 +245,128 @@ cp config/env.py.example config/env.py
 vim config/env.py
 ```
 
-### 4. 启动应用
+### 5. 启动应用
+
+#### 使用 UV 启动（推荐）
 
 ```bash
+# 快速启动
+./run_with_uv.sh
+
+# 或者手动使用 uv run
+uv run python app.py
+
 # 开发模式
-python start_app.py
+uv run python start_app.py
 
 # 生产模式
-python server.py
+uv run python server.py
 ```
 
-### 5. 代码生成
+#### 传统方式启动
+
+```bash
+# 激活虚拟环境
+source .venv/bin/activate
+
+# 启动应用
+python app.py
+```
+
+### 6. 验证安装
+
+#### 自动环境检查
+
+运行环境检查脚本，验证所有配置是否正确：
+
+```bash
+# 使用 UV 运行检查脚本
+uv run python check_setup.py
+```
+
+这个脚本会检查：
+- Python 版本是否符合要求
+- UV 是否正确安装
+- 项目文件是否完整
+- 关键依赖是否安装成功
+- 虚拟环境是否正常工作
+
+#### 手动验证
+
+访问以下地址验证服务启动成功：
+
+- API 文档: http://localhost:8000/docs
+- ReDoc 文档: http://localhost:8000/redoc
+- 健康检查: http://localhost:8000/health
+
+## UV 包管理器使用指南
+
+### 1. 依赖管理
+
+```bash
+# 添加新的生产依赖
+uv add package_name
+
+# 添加开发依赖
+uv add --dev package_name
+
+# 移除依赖
+uv remove package_name
+
+# 更新所有依赖
+uv sync --upgrade
+
+# 查看依赖树
+uv tree
+```
+
+### 2. 项目命令
+
+```bash
+# 运行 Python 脚本
+uv run python script.py
+
+# 运行测试
+uv run pytest
+
+# 代码格式化
+uv run black .
+uv run isort .
+
+# 代码检查
+uv run ruff check .
+uv run ruff check --fix .
+
+# 类型检查
+uv run mypy .
+```
+
+### 3. 虚拟环境管理
+
+```bash
+# UV 自动管理虚拟环境，无需手动操作
+# 虚拟环境位置: .venv/
+
+# 查看 Python 解释器路径
+uv run python -c "import sys; print(sys.executable)"
+
+# 查看已安装包
+uv run pip list
+```
+
+### 4. 项目构建和发布
+
+```bash
+# 构建项目
+uv build
+
+# 发布到 PyPI（需要配置认证）
+uv publish
+```
+
+## 开发指南
+
+### 1. 代码生成
 
 ```bash
 # 访问代码生成器
@@ -229,6 +387,31 @@ POST /tool/gen/modules/generate
 
 ### 2. Docker 部署
 
+#### 使用 UV 的 Dockerfile（推荐）
+
+```dockerfile
+FROM python:3.9-slim
+
+# 安装 UV
+RUN pip install uv
+
+WORKDIR /app
+
+# 复制项目文件
+COPY pyproject.toml uv.lock ./
+COPY . .
+
+# 使用 UV 安装依赖
+RUN uv sync --no-dev
+
+EXPOSE 8000
+
+# 使用 UV 运行应用
+CMD ["uv", "run", "gunicorn", "app:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker"]
+```
+
+#### 传统 Dockerfile
+
 ```dockerfile
 FROM python:3.9-slim
 
@@ -240,6 +423,39 @@ COPY . .
 EXPOSE 8000
 
 CMD ["gunicorn", "app:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker"]
+```
+
+#### Docker Compose 示例
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/dbname
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: fastapi_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    
+volumes:
+  postgres_data:
 ```
 
 ### 3. 环境变量
@@ -259,11 +475,17 @@ DEBUG=False
 ### 1. 单元测试
 
 ```bash
-# 运行所有测试
-python -m pytest tests/
+# 运行所有测试（推荐使用 UV）
+uv run pytest tests/
 
 # 运行特定模块测试
-python -m pytest tests/module_admin/
+uv run pytest tests/module_admin/
+
+# 运行测试并生成覆盖率报告
+uv run pytest --cov=./ --cov-report=html
+
+# 传统方式运行测试
+python -m pytest tests/
 ```
 
 ### 2. API 测试
@@ -364,12 +586,53 @@ http://localhost:8000/redoc
 - 遵循 PEP 8 规范
 - 添加类型注解
 - 编写文档字符串
+- 使用项目配置的代码质量工具
 
-### 2. 提交规范
+```bash
+# 代码格式化
+uv run black .
+uv run isort .
+
+# 代码检查
+uv run ruff check .
+uv run ruff check --fix .
+
+# 类型检查
+uv run mypy .
+```
+
+### 2. 开发流程
+
+```bash
+# 1. 安装开发依赖
+uv sync
+
+# 2. 创建功能分支
+git checkout -b feature/your-feature
+
+# 3. 编写代码并运行质量检查
+uv run black .
+uv run isort .
+uv run ruff check --fix .
+uv run mypy .
+
+# 4. 运行测试
+uv run pytest
+
+# 5. 提交代码
+git add .
+git commit -m "feat: add your feature"
+
+# 6. 推送分支
+git push origin feature/your-feature
+```
+
+### 3. 提交规范
 
 - 使用语义化提交信息
 - 添加测试用例
 - 更新相关文档
+- 确保所有质量检查通过
 
 ## 许可证
 
