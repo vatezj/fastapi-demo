@@ -412,58 +412,40 @@ async def publish_task(
     """
     try:
         # 1. 验证任务数据
+        from utils.response_util import ResponseUtil
+        
         required_fields = ["task_name", "task_description", "task_price", "task_quantity", "task_type_id"]
         for field in required_fields:
             if field not in task_data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"缺少必填字段: {field}"
-                )
+                return ResponseUtil.error(f"缺少必填字段: {field}")
         
         # 2. 验证任务价格
         task_price = float(task_data["task_price"])
         if task_price < yozuan_config.yozuan_task_min_price:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"任务价格不能低于 {yozuan_config.yozuan_task_min_price}"
-            )
+            return ResponseUtil.error(f"任务价格不能低于 {yozuan_config.yozuan_task_min_price}")
         if task_price > yozuan_config.yozuan_task_max_price:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"任务价格不能高于 {yozuan_config.yozuan_task_max_price}"
-            )
+            return ResponseUtil.error(f"任务价格不能高于 {yozuan_config.yozuan_task_max_price}")
         
         # 3. 验证任务步骤数量
         steps = task_data.get("steps", [])
         if len(steps) > yozuan_config.yozuan_task_max_steps:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"任务步骤不能超过 {yozuan_config.yozuan_task_max_steps} 个"
-            )
+            return ResponseUtil.error(f"任务步骤不能超过 {yozuan_config.yozuan_task_max_steps} 个")
         
         # 4. 验证验证要求数量
         verifications = task_data.get("verifications", [])
         if len(verifications) > yozuan_config.yozuan_task_max_verifications:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"验证要求不能超过 {yozuan_config.yozuan_task_max_verifications} 个"
-            )
+            return ResponseUtil.error(f"验证要求不能超过 {yozuan_config.yozuan_task_max_verifications} 个")
         
         # 5. 检查用户余额是否足够
         from ..dao.account_dao import AccountDao
-        user_account = await AccountDao.get_user_account(db, current_user.user_id)
-        if not user_account:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="用户账户不存在"
-            )
+        account_dao = AccountDao(db)
+        # 获取或创建用户账户（如果不存在会自动创建）
+        user_account = await account_dao.get_or_create_user_account(current_user.user_id)
         
         total_cost = task_price * task_data["task_quantity"]
         if user_account.balance < total_cost:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="账户余额不足，无法发布任务"
-            )
+            from utils.response_util import ResponseUtil
+            return ResponseUtil.error("账户余额不足，无法发布任务")
         
         # 6. 创建任务
         # 准备任务数据，包含发布者ID
@@ -479,7 +461,7 @@ async def publish_task(
             await task_region_dao.create_task_regions(task.task_id, task_data["task_regions"])
         
         # 7. 冻结用户余额
-        await AccountDao.update_balance(
+        await account_dao.update_balance(
             db, current_user.user_id, total_cost, "freeze"
         )
         
@@ -494,13 +476,8 @@ async def publish_task(
             "success": True
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"任务发布失败: {str(e)}"
-        )
+        return ResponseUtil.error(f"任务发布失败: {str(e)}")
 
 
 @router.put("/{task_id}/update", summary="更新任务", tags=["任务管理"])
