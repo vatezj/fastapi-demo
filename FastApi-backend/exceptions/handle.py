@@ -68,10 +68,19 @@ def handle_exception(app: FastAPI):
             else:
                 error_msg = f"{field_name}: {error_msg}"
             
-            return ResponseUtil.error(msg=error_msg)
+            # 返回400状态码的错误响应
+            from fastapi.responses import JSONResponse
+            error_response = ResponseUtil.error(msg=error_msg)
+            # 直接返回修改状态码的响应
+            error_response.status_code = 400
+            return error_response
         
         # 如果没有具体错误信息，返回通用错误
-        return ResponseUtil.error(msg="请求参数验证失败")
+        from fastapi.responses import JSONResponse
+        error_response = ResponseUtil.error(msg="请求参数验证失败")
+        # 直接返回修改状态码的响应
+        error_response.status_code = 400
+        return error_response
 
     # 自定义权限检验异常
     @app.exception_handler(PermissionException)
