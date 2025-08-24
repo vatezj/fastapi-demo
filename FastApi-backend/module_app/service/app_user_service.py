@@ -360,9 +360,41 @@ class AppUserService:
     ) -> ResponseUtil:
         """APP用户注册"""
         try:
-            # 验证密码确认
-            if register_data.password != register_data.confirm_password:
-                return ResponseUtil.error("两次输入的密码不一致")
+            # 验证码校验
+            if register_data.code and register_data.uuid:
+                from config.get_redis import RedisUtil
+                redis = await RedisUtil.get_redis_pool()
+                if redis:
+                    stored_code = await redis.get(f"captcha:{register_data.uuid}")
+                    if not stored_code:
+                        return ResponseUtil.error("验证码已失效，请重新获取")
+                    if str(stored_code) != register_data.code:
+                        return ResponseUtil.error("验证码错误")
+                    # 验证成功后删除验证码
+                    await redis.delete(f"captcha:{register_data.uuid}")
+            
+            # 密码强度验证
+            from utils.password_validator import PasswordValidator
+            password_validation = PasswordValidator.validate_password_strength(register_data.password)
+            if not password_validation['is_valid']:
+                error_msg = "密码不符合要求：" + "; ".join(password_validation['errors'])
+                return ResponseUtil.error(error_msg)
+            
+            # 如果密码强度较弱，给出警告但允许注册
+            if password_validation['score'] < 3:
+                # 记录警告日志
+                print(f"用户 {register_data.user_name} 使用了弱密码，强度评分: {password_validation['score']}")
+            
+            # 联系方式验证
+            from utils.contact_validator import ContactValidator
+            contact_validation = ContactValidator.validate_contact_info(
+                email=register_data.email, 
+                phone=register_data.phone
+            )
+            
+            if not contact_validation['is_valid']:
+                error_msg = "联系方式验证失败：" + "; ".join(contact_validation['errors'])
+                return ResponseUtil.error(error_msg)
             
             # 检查用户名是否已存在
             if await AppUserDao.check_username_exists(db, register_data.user_name):

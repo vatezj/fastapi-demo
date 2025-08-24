@@ -23,6 +23,6 @@ uv sync
 
 # 运行项目
 echo "🌟 启动 FastAPI 应用..."
-uv run python app.py
+uv run python app.py --env=dev
 
 echo "✅ 项目已启动！" 

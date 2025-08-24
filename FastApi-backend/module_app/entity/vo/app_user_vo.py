@@ -205,14 +205,27 @@ class AppLoginModel(BaseModel):
 class AppRegisterModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
     
-    user_name: str = Field(..., description='用户账号')
-    nick_name: str = Field(..., description='用户昵称')
+    user_name: str = Field(..., description='用户账号', min_length=3, max_length=30)
+    nick_name: str = Field(..., description='用户昵称', min_length=2, max_length=30)
     email: Optional[str] = Field(default=None, description='用户邮箱')
     phone: Optional[str] = Field(default=None, description='手机号码')
-    password: str = Field(..., description='密码')
-    confirm_password: str = Field(..., description='确认密码')
-    code: Optional[str] = Field(default=None, description='验证码')
+    password: str = Field(..., description='密码', min_length=8, max_length=100)
+    confirm_password: str = Field(..., description='确认密码', min_length=8, max_length=100)
+    code: Optional[str] = Field(default=None, description='验证码', min_length=4, max_length=6)
     uuid: Optional[str] = Field(default=None, description='验证码标识')
+    
+    @model_validator(mode='after')
+    def validate_fields(self) -> 'AppRegisterModel':
+        """字段验证器"""
+        # 验证密码确认
+        if self.password != self.confirm_password:
+            raise ValueError('两次输入的密码不一致')
+        
+        # 验证用户名不能包含特殊字符
+        if not re.match(r'^[a-zA-Z0-9_]+$', self.user_name):
+            raise ValueError('用户名只能包含字母、数字和下划线')
+        
+        return self
 
 
 # APP短信验证码模型

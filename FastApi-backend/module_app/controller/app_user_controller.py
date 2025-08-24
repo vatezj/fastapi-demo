@@ -8,6 +8,7 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.get_db import get_db
 from ..service.app_user_service import AppUserService
+from utils.response_util import ResponseUtil
 from ..entity.vo.app_user_vo import (
     AppAddUserModel, AppEditUserModel, AppUserQueryModel, AppUserPageQueryModel,
     AppResetPasswordModel, AppLoginModel, AppRegisterModel, AppSmsCodeModel,
@@ -60,6 +61,29 @@ async def get_app_user_page(
         sex=sex
     )
     return await AppUserService.get_user_page(page_query, db)
+
+
+@app_user_router.get("/captcha/")
+async def get_captcha():
+    """获取图形验证码"""
+    from utils.captcha_util import CaptchaUtil
+    import uuid
+    
+    # 生成UUID
+    uuid_str = str(uuid.uuid4())
+    
+    # 生成验证码
+    result = await CaptchaUtil.generate_and_store_captcha(uuid_str)
+    
+    if result.get('error'):
+        return ResponseUtil.error(result['error'])
+    
+    # 返回验证码图片和UUID（生产环境不返回code）
+    return ResponseUtil.success("获取验证码成功", data={
+        'uuid': result['uuid'],
+        'image': result['image'],
+        'expire_seconds': result['expire_seconds']
+    })
 
 
 @app_user_router.get("/{user_id}")
@@ -144,6 +168,9 @@ async def send_sms_code(
 ):
     """发送短信验证码"""
     return await AppUserService.send_sms_code(sms_data, db)
+
+
+
 
 
 # ==================== 登录日志接口 ====================

@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from config.env import AppConfig
 from .controller.app_user_controller import app_user_router
-
 from .controller.user_controller import router as user_router
 from .controller.admin_interface_controller import admin_interface_router
+from exceptions.handle import handle_exception
 
 # 创建专门的APP模块FastAPI应用
 app_app = FastAPI(
@@ -25,3 +25,6 @@ app_app.include_router(app_user_router, prefix="/v1")
 
 # 注册后台管理接口路由 - 专门为后台管理系统提供
 app_app.include_router(admin_interface_router, prefix="/v1")
+
+# 注册异常处理器
+handle_exception(app_app)

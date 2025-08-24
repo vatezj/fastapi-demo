@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.exceptions import HTTPException
+from fastapi.exceptions import HTTPException, RequestValidationError
 from pydantic_validation_decorator import FieldValidationError
 from exceptions.exception import (
     AuthException,
@@ -41,6 +41,37 @@ def handle_exception(app: FastAPI):
     async def field_validation_error_handler(request: Request, exc: FieldValidationError):
         logger.warning(f'FieldValidationError被捕获: {exc.message}')
         return ResponseUtil.failure(msg=exc.message)
+
+    # Pydantic验证异常处理
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        logger.warning(f'RequestValidationError被捕获: {exc.errors()}')
+        
+        # 提取第一个验证错误
+        if exc.errors():
+            first_error = exc.errors()[0]
+            field_name = " -> ".join(str(loc) for loc in first_error["loc"])
+            error_type = first_error["type"]
+            error_msg = first_error["msg"]
+            
+            # 根据错误类型生成友好的错误消息
+            if error_type == "string_too_short":
+                min_length = first_error.get("ctx", {}).get("min_length", 0)
+                error_msg = f"{field_name}长度不能少于{min_length}个字符"
+            elif error_type == "string_too_long":
+                max_length = first_error.get("ctx", {}).get("max_length", 0)
+                error_msg = f"{field_name}长度不能超过{max_length}个字符"
+            elif error_type == "missing":
+                error_msg = f"缺少必填字段: {field_name}"
+            elif error_type == "value_error":
+                error_msg = f"{field_name}格式错误: {error_msg}"
+            else:
+                error_msg = f"{field_name}: {error_msg}"
+            
+            return ResponseUtil.error(msg=error_msg)
+        
+        # 如果没有具体错误信息，返回通用错误
+        return ResponseUtil.error(msg="请求参数验证失败")
 
     # 自定义权限检验异常
     @app.exception_handler(PermissionException)
