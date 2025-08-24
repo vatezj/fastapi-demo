@@ -3,7 +3,7 @@
 APP用户控制器
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, Request
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.get_db import get_db
@@ -145,11 +145,34 @@ async def reset_app_user_password(
 @app_user_router.post("/login")
 async def app_user_login(
     login_data: AppLoginModel,
-    request,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """APP用户登录"""
     return await AppUserService.app_login(login_data, request, db)
+
+
+@app_user_router.post("/refresh-token")
+async def refresh_access_token(
+    refresh_token: str = Body(..., embed=True, description="刷新token")
+):
+    """刷新访问token"""
+    from utils.jwt_util import JWTUtil
+    
+    # 验证刷新 token
+    payload = JWTUtil.verify_token(refresh_token)
+    if not payload or payload.get("type") != "refresh":
+        return ResponseUtil.error("无效的刷新token")
+    
+    # 生成新的访问 token
+    user_data = {k: v for k, v in payload.items() if k not in ["exp", "type"]}
+    new_access_token = JWTUtil.create_access_token(data=user_data)
+    
+    return ResponseUtil.success("token刷新成功", data={
+        'access_token': new_access_token,
+        'token_type': 'bearer',
+        'expires_in': JWTUtil.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    })
 
 
 @app_user_router.post("/register")

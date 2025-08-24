@@ -466,11 +466,12 @@ async def publish_task(
             )
         
         # 6. 创建任务
+        # 准备任务数据，包含发布者ID
+        task_data_with_publisher = task_data.copy()
+        task_data_with_publisher['publisher_id'] = current_user.user_id
+        
         task_dao = TaskDao(db)
-        task = await task_dao.create_task(
-            publisher_id=current_user.user_id,
-            task_data=task_data
-        )
+        task = await task_dao.create_task(task_data_with_publisher)
         
         # 7. 处理任务地区关联
         if "task_regions" in task_data and task_data["task_regions"]:

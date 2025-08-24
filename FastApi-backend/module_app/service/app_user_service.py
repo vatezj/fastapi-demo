@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Depends
+from fastapi import Depends, Request
 from config.get_db import get_db
 from ..dao.app_user_dao import AppUserDao, AppLoginLogDao
 from ..entity.vo.app_user_vo import (
@@ -301,7 +301,7 @@ class AppUserService:
     @staticmethod
     async def app_login(
         login_data: AppLoginModel,
-        request,
+        request: Request,
         db: AsyncSession
     ) -> ResponseUtil:
         """APP用户登录"""
@@ -317,38 +317,45 @@ class AppUserService:
             if user.status != "0":
                 return ResponseUtil.error("用户已被停用")
             
-            # 更新登录信息
-            await AppUserDao.update_user(db, user.user_id, {
-                'login_ip': request.client.host,
-                'login_date': datetime.now(),
-                'update_time': datetime.now()
-            })
+            # 获取客户端IP地址
+            client_ip = getattr(request.client, 'host', 'unknown') if request.client else 'unknown'
+            current_time = datetime.now()
             
-            # 记录登录日志
-            log_data = {
-                'user_name': user.user_name,
-                'ipaddr': request.client.host,
-                'status': '0',
-                'msg': '登录成功',
-                'login_time': datetime.now()
-            }
-            await AppLoginLogDao.create_login_log(db, log_data)
-            
-            # 构建用户信息
-            user_info = {
+            # 构建用户数据用于生成 JWT token
+            user_data_for_token = {
                 'user_id': user.user_id,
                 'user_name': user.user_name,
-                'nick_name': user.nick_name,
-                'email': user.email,
-                'phone': user.phone,
-                'sex': user.sex,
-                'avatar': user.avatar,
-                'status': user.status,
-                'login_ip': request.client.host,
-                'login_date': datetime.now()
+                'sub': str(user.user_id),  # JWT 标准字段
+                'login_ip': client_ip,
+                'login_time': current_time.isoformat()
             }
             
-            return ResponseUtil.success("登录成功", data=user_info)
+            # 生成 JWT token 对
+            from utils.jwt_util import JWTUtil
+            tokens = JWTUtil.create_token_pair(user_data_for_token)
+            
+            # 构建返回数据
+            login_response = {
+                'access_token': tokens['access_token'],
+                'refresh_token': tokens['refresh_token'],
+                'token_type': 'bearer',
+                'expires_in': JWTUtil.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # 秒为单位
+                'refresh_expires_in': JWTUtil.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 秒为单位
+                'user_info': {
+                    'user_id': user.user_id,
+                    'user_name': user.user_name,
+                    'nick_name': user.nick_name,
+                    'email': user.email,
+                    'phone': user.phone,
+                    'sex': user.sex,
+                    'avatar': user.avatar,
+                    'status': user.status,
+                    'login_ip': client_ip,
+                    'login_date': current_time
+                }
+            }
+            
+            return ResponseUtil.success("登录成功", data=login_response)
             
         except Exception as e:
             return ResponseUtil.error(f"登录失败: {str(e)}")
@@ -362,16 +369,21 @@ class AppUserService:
         try:
             # 验证码校验
             if register_data.code and register_data.uuid:
-                from config.get_redis import RedisUtil
-                redis = await RedisUtil.get_redis_pool()
-                if redis:
-                    stored_code = await redis.get(f"captcha:{register_data.uuid}")
-                    if not stored_code:
-                        return ResponseUtil.error("验证码已失效，请重新获取")
-                    if str(stored_code) != register_data.code:
-                        return ResponseUtil.error("验证码错误")
-                    # 验证成功后删除验证码
-                    await redis.delete(f"captcha:{register_data.uuid}")
+                # 检查万能验证码
+                from utils.test_utils import TestUtils
+                if TestUtils.is_universal_captcha(register_data.code):
+                    print(f"用户 {register_data.user_name} 使用万能验证码注册")
+                else:
+                    from config.get_redis import RedisUtil
+                    redis = await RedisUtil.get_redis_pool()
+                    if redis:
+                        stored_code = await redis.get(f"captcha:{register_data.uuid}")
+                        if not stored_code:
+                            return ResponseUtil.error("验证码已失效，请重新获取")
+                        if str(stored_code) != register_data.code:
+                            return ResponseUtil.error("验证码错误")
+                        # 验证成功后删除验证码
+                        await redis.delete(f"captcha:{register_data.uuid}")
             
             # 密码强度验证
             from utils.password_validator import PasswordValidator
