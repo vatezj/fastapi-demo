@@ -11,6 +11,7 @@ from exceptions.exception import (
 )
 from utils.log_util import logger
 from utils.response_util import jsonable_encoder, JSONResponse, ResponseUtil
+from datetime import datetime
 
 
 def handle_exception(app: FastAPI):
@@ -104,8 +105,31 @@ def handle_exception(app: FastAPI):
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         logger.warning(f'HTTPException被捕获: {exc.status_code} - {exc.detail}')
+        
+        # 根据状态码生成友好的错误消息
+        if exc.status_code == 401:
+            msg = "认证失败，请重新登录"
+        elif exc.status_code == 403:
+            msg = "权限不足，无法访问"
+        elif exc.status_code == 404:
+            msg = "请求的资源不存在"
+        elif exc.status_code == 422:
+            msg = "请求参数验证失败"
+        elif exc.status_code == 500:
+            msg = "服务器内部错误，请稍后重试"
+        else:
+            msg = exc.detail or "请求处理失败"
+        
+        # 返回统一的错误格式
         return JSONResponse(
-            content=jsonable_encoder({'code': exc.status_code, 'msg': exc.detail}), status_code=exc.status_code
+            content=jsonable_encoder({
+                'code': exc.status_code, 
+                'msg': msg,
+                'detail': exc.detail,
+                'success': False,
+                'timestamp': datetime.now().isoformat()
+            }), 
+            status_code=exc.status_code
         )
 
     # 处理其他异常 - 最低优先级，添加详细日志
@@ -115,4 +139,26 @@ def handle_exception(app: FastAPI):
         logger.error(f'请求路径: {request.url.path}')
         logger.error(f'请求方法: {request.method}')
         logger.exception(exc)
-        return ResponseUtil.error(msg=str(exc))
+        
+        # 根据异常类型生成友好的错误消息
+        if "database" in str(exc).lower() or "connection" in str(exc).lower():
+            msg = "数据库连接异常，请稍后重试"
+        elif "redis" in str(exc).lower():
+            msg = "缓存服务异常，请稍后重试"
+        elif "greenlet" in str(exc).lower():
+            msg = "系统服务异常，请稍后重试"
+        elif "timeout" in str(exc).lower():
+            msg = "请求超时，请稍后重试"
+        else:
+            msg = "系统异常，请稍后重试"
+        
+        return JSONResponse(
+            content=jsonable_encoder({
+                'code': 500,
+                'msg': msg,
+                'detail': str(exc),
+                'success': False,
+                'timestamp': datetime.now().isoformat()
+            }), 
+            status_code=500
+        )

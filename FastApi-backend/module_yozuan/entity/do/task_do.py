@@ -3,11 +3,9 @@
 """
 
 from sqlalchemy import Column, Integer, String, Text, DECIMAL, DateTime, JSON, Index
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from datetime import datetime
-
-Base = declarative_base()
+from config.database import Base
 
 
 class YozuanTask(Base):
@@ -28,7 +26,8 @@ class YozuanTask(Base):
     completion_hours = Column(Integer, nullable=False, comment="报名后完成时限（小时）")
     review_hours = Column(Integer, nullable=False, comment="验证后审核时限（小时）")
     device_limit = Column(String(20), default="all", comment="设备限制：all/android/ios")
-    region_limit = Column(JSON, comment="地区限制，JSON格式存储地区代码")
+    area_scope = Column(Integer, default=1, comment="地区范围类型：1=全国，2=单个城市，3=多个城市")
+    single_area_code = Column(String(6), comment="单个城市编码（仅当area_scope=2时有效）")
     frequency_limit = Column(String(20), default="once", comment="限制次数：once/daily/thrice")
     task_status = Column(String(20), default="draft", comment="任务状态：draft/pending/active/paused/completed/cancelled")
     start_time = Column(DateTime, comment="任务开始时间")
@@ -113,3 +112,21 @@ class YozuanTaskTag(Base):
     
     def __repr__(self):
         return f"<YozuanTaskTag(tag_id={self.tag_id}, tag_name='{self.tag_name}', tag_code='{self.tag_code}')>"
+
+
+class YozuanTaskCityRel(Base):
+    """任务城市关联表"""
+    __tablename__ = "yozuan_task_city_rel"
+    
+    rel_id = Column(Integer, primary_key=True, autoincrement=True, comment="关联ID")
+    task_id = Column(Integer, nullable=False, comment="任务ID")
+    area_code = Column(String(6), nullable=False, comment="城市编码")
+    create_time = Column(DateTime, default=func.now(), comment="创建时间")
+    
+    __table_args__ = (
+        Index("idx_task_city", "task_id", "area_code"),
+        {"comment": "任务城市关联表"}
+    )
+    
+    def __repr__(self):
+        return f"<YozuanTaskCityRel(task_id={self.task_id}, area_code={self.area_code})>"

@@ -4,12 +4,13 @@
 """
 
 from sqlalchemy import Column, String, Integer, DateTime, Text
-from shared.entity.base.base_do import BaseDO
+from config.database import Base
+from datetime import datetime
 
-class UserDO(BaseDO):
+class UserDO(Base):
     """用户数据对象"""
     
-    __tablename__ = "sys_user"
+    __tablename__ = "shared_user"
     
     # 用户ID
     user_id = Column(
@@ -113,6 +114,49 @@ class UserDO(BaseDO):
     profile = Column(
         Text, 
         comment="个人简介"
+    )
+    
+    # 创建时间
+    create_time = Column(
+        DateTime, 
+        default=datetime.now, 
+        comment="创建时间"
+    )
+    
+    # 更新时间
+    update_time = Column(
+        DateTime, 
+        default=datetime.now, 
+        onupdate=datetime.now, 
+        comment="更新时间"
+    )
+    
+    # 逻辑删除标记 (0: 正常, 1: 删除)
+    del_flag = Column(
+        String(1), 
+        default='0', 
+        comment="逻辑删除标记"
+    )
+    
+    # 创建者
+    create_by = Column(
+        String(1), 
+        default='', 
+        comment="创建者"
+    )
+    
+    # 更新者
+    update_by = Column(
+        String(1), 
+        default='', 
+        comment="更新者"
+    )
+    
+    # 备注
+    remark = Column(
+        String(500), 
+        default='', 
+        comment="备注"
     )
     
     def __repr__(self):

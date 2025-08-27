@@ -88,6 +88,11 @@ app = FastAPI(
     openapi_url=None,  # 禁用主服务的openapi
 )
 
+# 加载中间件处理方法
+handle_middleware(app)
+# 加载全局异常处理方法 - 在挂载子应用之前注册
+handle_exception(app)
+
 # 挂载子应用
 handle_sub_applications(app)
 
@@ -99,11 +104,6 @@ app.mount("/app", app_app, name="app_module")
 
 # 挂载游赚模块应用
 app.mount("/yozuan", yozuan_app, name="yozuan_module")
-
-# 加载中间件处理方法
-handle_middleware(app)
-# 加载全局异常处理方法
-handle_exception(app)
 
 
 # 路由注册已完成在各自的模块中

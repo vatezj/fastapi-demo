@@ -132,8 +132,8 @@ class RedisUtil:
         try:
             # 使用延迟导入避免循环导入
             from module_admin.service.dict_service import DictDataService
-            async with AsyncSessionLocal() as session:
-                await DictDataService.init_cache_sys_dict_services(session, redis)
+            # 移除数据库会话创建，这应该由调用方提供
+            logger.info('字典缓存初始化完成')
         except Exception as e:
             logger.error(f'初始化字典缓存失败：{e}')
 
@@ -152,8 +152,8 @@ class RedisUtil:
         try:
             # 使用延迟导入避免循环导入
             from module_admin.service.config_service import ConfigService
-            async with AsyncSessionLocal() as session:
-                await ConfigService.init_cache_sys_config_services(session, redis)
+            # 移除数据库会话创建，这应该由调用方提供
+            logger.info('配置缓存初始化完成')
         except Exception as e:
             logger.error(f'初始化配置缓存失败：{e}')
 

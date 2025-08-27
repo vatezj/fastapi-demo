@@ -128,7 +128,7 @@ async def get_admin_user_detail(
         
         # 获取账户信息
         account_dao = AccountDao(db)
-        account = await account_dao.get_user_account(db, user_id)
+        account = await account_dao.get_user_account(user_id)
         
         # 获取邀请关系
         invitation_dao = InvitationDao(db)

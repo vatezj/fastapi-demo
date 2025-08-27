@@ -148,8 +148,8 @@ async def recharge_account(
         "payment_channel": "web",
         "remark": "账户充值"
     }),
-    current_user: AppUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user)
 ):
     """
     账户充值
@@ -205,35 +205,52 @@ async def recharge_account(
         
         # 4. 执行充值
         account_dao = AccountDao(db)
+        print(f"DEBUG: 开始获取或创建用户账户")
         
         # 获取或创建用户账户
         user_account = await account_dao.get_or_create_user_account(current_user.user_id)
+        print(f"DEBUG: 用户账户获取成功，账户ID: {user_account.account_id}")
+        
+        # 获取充值前的余额
+        balance_before = float(user_account.balance)
+        balance_after = balance_before + amount
         
         # 更新账户余额
         await account_dao.update_balance(
-            db, current_user.user_id, amount, "add"
+            current_user.user_id, amount, "add"
         )
+        print(f"DEBUG: 账户余额更新成功")
         
         # 创建充值交易记录
+        account_id = user_account.account_id
+        print(f"DEBUG: 开始创建交易记录，账户ID: {account_id}")
         transaction = await account_dao.create_transaction(
-            db=db,
-            account_id=user_account.account_id,
+            account_id=account_id,
             transaction_type="recharge",
             amount=amount,
             description=f"账户充值 - {remark}",
             related_id=0,  # 充值没有相关订单
             payment_method=payment_method,
-            payment_channel=payment_channel
+            payment_channel=payment_channel,
+            balance_before=balance_before,
+            balance_after=balance_after
         )
         
-        # 5. 获取更新后的账户信息
-        updated_account = await account_dao.get_user_account(db, current_user.user_id)
+        # 立即获取交易ID，避免懒加载问题
+        transaction_id = transaction.transaction_id
+        
+        # 5. 强制刷新数据库会话，确保获取最新数据
+        await db.flush()
+        await db.refresh(user_account)
+        
+        # 重新查询数据库获取最新余额
+        updated_account = await account_dao.get_user_account(current_user.user_id)
         
         return {
             "code": 200,
             "msg": "充值成功",
             "data": {
-                "transaction_id": transaction.transaction_id,
+                "transaction_id": transaction_id,
                 "amount": amount,
                 "payment_method": payment_method,
                 "payment_channel": payment_channel,
@@ -322,7 +339,7 @@ async def withdraw_account(
         
         # 5. 检查账户余额
         account_dao = AccountDao(db)
-        user_account = await account_dao.get_user_account(db, current_user.user_id)
+        user_account = await account_dao.get_user_account(current_user.user_id)
         
         if not user_account:
             raise HTTPException(
@@ -353,24 +370,32 @@ async def withdraw_account(
         
         # 8. 冻结提现金额
         await account_dao.update_balance(
-            db, current_user.user_id, amount, "freeze"
+            current_user.user_id, amount, "freeze"
         )
         
         # 9. 创建提现交易记录
+        # 先获取账户ID，避免延迟加载问题
+        account_id = user_account.account_id
+        
+        # 获取当前余额信息
+        current_balance = float(user_account.balance)
+        frozen_amount = float(user_account.frozen_amount)
+        
         transaction = await account_dao.create_transaction(
-            db=db,
-            account_id=user_account.account_id,
+            account_id=account_id,
             transaction_type="withdraw",
             amount=amount,
             description=f"账户提现 - {remark}",
             related_id=0,  # 提现没有相关订单
             withdraw_method=withdraw_method,
             withdraw_account=withdraw_account,
-            real_name=real_name
+            real_name=real_name,
+            balance_before=current_balance,
+            balance_after=current_balance  # 提现时余额已在冻结时扣除
         )
         
         # 10. 获取更新后的账户信息
-        updated_account = await account_dao.get_user_account(db, current_user.user_id)
+        updated_account = await account_dao.get_user_account(current_user.user_id)
         
         return {
             "code": 200,

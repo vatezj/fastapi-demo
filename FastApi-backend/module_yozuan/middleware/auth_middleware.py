@@ -84,7 +84,9 @@ class YozuanAuthMiddleware:
             
             # 5. Redis token验证（可选）
             try:
-                redis = RedisUtil.get_redis()
+                # 使用正确的方法获取Redis连接
+                from config.get_redis import RedisUtil
+                redis = RedisUtil._redis_pool if RedisUtil.is_redis_available() else None
                 if redis:
                     redis_token = await redis.get(f"access_token:{user_id}")
                     if redis_token and token != redis_token:
@@ -101,9 +103,26 @@ class YozuanAuthMiddleware:
         except HTTPException:
             raise
         except Exception as e:
+            # 记录详细的错误信息
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"认证服务异常: {str(e)}", exc_info=True)
+            
+            # 提供更详细的错误信息
+            if "database" in str(e).lower() or "connection" in str(e).lower():
+                detail = "数据库连接异常，请稍后重试"
+            elif "redis" in str(e).lower():
+                detail = "缓存服务异常，请稍后重试"
+            elif "jwt" in str(e).lower() or "token" in str(e).lower():
+                detail = "Token验证异常，请重新登录"
+            elif "user" in str(e).lower():
+                detail = "用户信息获取异常，请重新登录"
+            else:
+                detail = f"认证服务异常: {str(e)}"
+            
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="认证服务异常"
+                detail=detail
             )
     
     @staticmethod
@@ -148,8 +167,8 @@ class YozuanAuthMiddleware:
 
 # 创建依赖函数
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> AppUser:
     """获取当前认证用户依赖"""
     return await YozuanAuthMiddleware.get_current_user(credentials, db)

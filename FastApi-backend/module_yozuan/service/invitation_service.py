@@ -311,8 +311,9 @@ class RebateService:
                 total_rebate_amount += rebate_amount
                 
                 # 更新邀请人账户余额
-                await AccountDao.update_balance(
-                    db, invitation.inviter_id, rebate_amount, "add"
+                account_dao = AccountDao(db)
+                await account_dao.update_balance(
+                    invitation.inviter_id, rebate_amount, "add"
                 )
             
             return {

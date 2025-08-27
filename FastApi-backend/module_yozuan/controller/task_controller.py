@@ -16,6 +16,22 @@ from module_app.entity.do.app_user_do import AppUser
 from ..service.invitation_service import RebateService
 from config.yozuan_config import yozuan_config
 
+
+def get_area_scope_display(area_scope: int) -> str:
+    """获取地区范围类型的显示名称"""
+    scope_map = {
+        1: "全国",
+        2: "单个城市", 
+        3: "多个城市"
+    }
+    return scope_map.get(area_scope, "未知")
+
+
+def get_display_name(value: str, display_map: Dict[str, str]) -> str:
+    """根据枚举值获取对应的显示名称"""
+    return display_map.get(value, value)
+
+
 router = APIRouter()
 
 
@@ -197,7 +213,9 @@ async def get_task_detail(
                     "completion_hours": task.completion_hours,
                     "review_hours": task.review_hours,
                     "device_limit": task.device_limit,
-                    "region_limit": task.region_limit,
+                    "area_scope": task.area_scope,
+                    "area_scope_display": get_area_scope_display(task.area_scope),
+                    "single_area_code": task.single_area_code,
                     "frequency_limit": task.frequency_limit,
                     "task_status": task.task_status,
                     "status_display": get_display_name(task.task_status, TASK_STATUS_DISPLAY),
@@ -270,12 +288,10 @@ async def publish_task(
         "device_limit": "mobile",
         "frequency_limit": "once_per_day",
         "task_deadline": "2024-12-31T23:59:59",
-            "task_regions": [
-        {"region_code": "000000", "level": "country"},
-        {"region_code": "11", "level": "province"},
-        {"region_code": "110101", "level": "county"}
-    ],
-    "task_tags": ["测试", "简单"],
+        "area_scope": 3,  # 1=全国，2=单个城市，3=多个城市
+        "area_codes": ["440100", "440300"],  # 广州市、深圳市（仅当area_scope=3时使用）
+        "single_area_code": "110100",  # 北京市（仅当area_scope=2时使用）
+        "task_tags": ["测试", "简单"],
         "steps": [
             {
                 "step_order": 1,
@@ -332,83 +348,178 @@ async def publish_task(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    发布新任务
+    发布任务接口
+    
+    ## 余额扣除说明
+    
+    发布任务时会自动扣除用户余额：
+    1. **预冻结金额**：任务总金额 = 任务单价 × 任务数量
+    2. **余额验证**：发布前会检查用户可用余额是否足够
+    3. **冻结操作**：将相应金额从可用余额转移到冻结余额
+    4. **交易记录**：自动创建冻结交易记录，便于用户查询
     
     ## 请求参数说明
     
-    ### 基本信息 (必填)
-    - **task_name** (string, 必填): 任务名称，长度1-100字符
-    - **task_description** (string, 必填): 任务详细描述，长度10-2000字符
-    - **task_price** (float, 必填): 单个任务价格，范围0.01-10000元
-    - **task_quantity** (integer, 必填): 任务数量，范围1-10000
-    - **task_type_id** (integer, 必填): 任务类型ID，参考 `/types` 接口
+    ### 基础信息（必填）
+    - **task_name** (string): 任务名称，最大100字符
+    - **task_description** (string): 任务详细描述
+    - **task_price** (number): 任务单价，支持2位小数
+    - **task_quantity** (integer): 任务总数量
+    - **task_type_id** (integer): 任务类型ID
     
-    ### 任务限制 (可选)
-    - **device_limit** (string, 可选): 设备限制，可选值：`mobile`(手机), `pc`(电脑), `both`(不限)
-    - **frequency_limit** (string, 可选): 频率限制，可选值：`once`(一次), `once_per_day`(每日一次), `once_per_week`(每周一次), `unlimited`(不限)
-    - **task_deadline** (string, 可选): 任务截止时间，ISO 8601格式，如：`2024-12-31T23:59:59`
-    - **task_regions** (array, 可选): 任务地区数组，每个地区包含：
-        - **region_code** (string, 必填): 地区编码，如：`000000`(全国)、`11`(北京)、`110101`(东城区)
-        - **level** (string, 必填): 地区级别，可选值：`country`(国家)、`province`(省)、`city`(市)、`county`(县)
-    - **task_tags** (array, 可选): 任务标签数组，如：`["测试", "简单", "赚钱"]`
+    ### 地区范围配置（必填）
+    - **area_scope** (integer): 地区范围类型
+        - `1` = 全国：任务覆盖全国所有地区
+        - `2` = 单个城市：任务仅覆盖指定的单个城市
+        - `3` = 多个城市：任务覆盖指定的多个城市
     
-    ### 任务步骤 (可选，最多10个)
-    - **steps** (array, 可选): 任务步骤数组，每个步骤包含：
-        - **step_order** (integer, 必填): 步骤顺序，从1开始
-        - **step_type** (string, 必填): 步骤类型，可选值：`visit`(访问), `click`(点击), `input`(输入), `scroll`(滚动), `wait`(等待), `custom`(自定义)
-        - **step_title** (string, 必填): 步骤标题，长度1-100字符
-        - **step_description** (string, 必填): 步骤描述，长度1-500字符
-        - **step_url** (string, 可选): 目标URL，当step_type为visit时必填
-        - **step_target** (string, 可选): 目标元素选择器，当step_type为click时必填
-        - **step_duration** (integer, 可选): 持续时间(秒)，当step_type为wait时必填
-        - **step_required** (boolean, 必填): 是否必填步骤，默认true
+    #### 地区范围类型详细说明
     
-    ### 验证要求 (可选，最多5个)
-    - **verifications** (array, 可选): 验证要求数组，每个验证包含：
-        - **verification_title** (string, 必填): 验证标题，长度1-100字符
-        - **verification_type** (string, 必填): 验证类型，可选值：`screenshot`(截图), `text`(文字), `file`(文件), `url`(链接), `custom`(自定义)
-        - **verification_description** (string, 必填): 验证描述，长度1-500字符
-        - **image_required** (boolean, 必填): 是否要求上传图片
-        - **text_required** (boolean, 必填): 是否要求填写文字
-        - **text_placeholder** (string, 可选): 文字输入提示，当text_required为true时建议填写
-        - **file_types** (array, 可选): 允许的文件类型，当verification_type为file时使用，如：`["jpg", "png", "pdf"]`
-        - **max_file_size** (integer, 可选): 最大文件大小(MB)，当verification_type为file时使用
+    **1. 全国任务 (area_scope = 1)**
+    ```json
+    {
+        "area_scope": 1
+        // 无需其他地区相关字段
+    }
+    ```
     
-    ### 奖励条件 (可选)
-    - **bonus_conditions** (array, 可选): 额外奖励条件数组，每个条件包含：
-        - **condition_type** (string, 必填): 条件类型，可选值：`time_bonus`(时间奖励), `quality_bonus`(质量奖励), `quantity_bonus`(数量奖励)
-        - **condition_value** (string, 必填): 条件值，如：`within_1_hour`、`high_quality`、`over_10_tasks`
-        - **bonus_amount** (float, 必填): 奖励金额
-        - **description** (string, 必填): 条件描述
+    **2. 单个城市任务 (area_scope = 2)**
+    ```json
+    {
+        "area_scope": 2,
+        "single_area_code": "110100"  // 北京市编码
+    }
+    ```
     
-    ### 特殊要求 (可选)
-    - **special_requirements** (string, 可选): 特殊要求说明，长度1-1000字符
-    - **contact_info** (object, 可选): 联系方式，包含：
-        - **qq** (string, 可选): QQ号码
-        - **wechat** (string, 可选): 微信号
-        - **phone** (string, 可选): 手机号码
-        - **email** (string, 可选): 邮箱地址
+    **3. 多个城市任务 (area_scope = 3)**
+    ```json
+    {
+        "area_scope": 3,
+        "area_codes": ["440100", "440300", "441900"]  // 广州、深圳、东莞
+    }
+    ```
     
-    ## 业务规则
+    ### 城市编码说明
+    城市编码采用国标行政区域代码（6位数字）：
+    - **110100**：北京市
+    - **310100**：上海市
+    - **440100**：广州市
+    - **440300**：深圳市
+    - **441900**：东莞市
     
-    1. **余额检查**: 发布任务前会检查用户余额是否足够支付 `task_price × task_quantity`
-    2. **余额冻结**: 任务发布成功后，相应金额会被冻结，直到任务完成或取消
-    3. **数据验证**: 所有必填字段都会被验证，不符合要求的数据会被拒绝
-    4. **返佣说明**: 返佣在任务完成并通过审核后处理，不在发布时处理
+    ### 可选配置
+    - **device_limit** (string): 设备限制，可选值：`all`/`android`/`ios`，默认 `all`
+    - **frequency_limit** (string): 限制次数，可选值：`once`/`daily`/`thrice`，默认 `once`
+    - **task_deadline** (string): 任务截止时间，ISO格式：`2024-12-31T23:59:59`
+    - **task_tags** (array): 任务标签数组，如 `["测试", "简单"]`
+    - **completion_hours** (integer): 完成时限（小时），默认24小时
+    - **review_hours** (integer): 审核时限（小时），默认48小时
+    
+    ### 高级配置（可选）
+    - **steps** (array): 任务步骤详情
+    - **verifications** (array): 验证要求
+    - **bonus_conditions** (array): 奖励条件
+    - **special_requirements** (string): 特殊要求
+    - **contact_info** (object): 联系方式
     
     ## 响应说明
     
-    - **code**: 200表示成功
-    - **msg**: 响应消息
-    - **data**: 包含task_id、task_name、total_cost和rebate_info
-    - **success**: 操作是否成功
+    ### 成功响应
+    ```json
+    {
+        "code": 200,
+        "msg": "任务发布成功",
+        "data": {
+            "task_id": 123,
+            "task_name": "测试任务名称",
+            "total_cost": 1050.00,
+            "balance_after": 950.00,
+            "frozen_amount_after": 1050.00
+        },
+        "success": true
+    }
+    ```
     
-    ## 错误码说明
+    ### 错误响应
+    ```json
+    {
+        "code": 400,
+        "msg": "余额不足，当前余额: 500.00，需要: 1050.00",
+        "success": false
+    }
+    ```
     
-    - **400**: 请求参数错误（缺少必填字段、价格超出范围、步骤/验证数量超限等）
-    - **401**: 用户未认证
-    - **403**: 用户被禁用
-    - **500**: 服务器内部错误
+    ```json
+    {
+        "code": 400,
+        "msg": "任务发布失败: 单个城市任务必须指定城市编码",
+        "success": false
+    }
+    ```
+    
+    ## 使用示例
+    
+    ### 发布全国任务
+    ```bash
+    curl -X POST "http://127.0.0.1:9099/yozuan/v1/task/publish" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -d '{
+        "task_name": "全国推广任务",
+        "task_description": "面向全国用户的推广任务",
+        "task_price": 10.00,
+        "task_quantity": 1000,
+        "task_type_id": 1,
+        "area_scope": 1
+    }'
+    ```
+    
+    ### 发布单城市任务
+    ```bash
+    curl -X POST "http://127.0.0.1:9099/yozuan/v1/task/publish" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -d '{
+        "task_name": "北京地区任务",
+        "task_description": "仅限北京地区的任务",
+        "task_price": 15.00,
+        "task_quantity": 100,
+        "task_type_id": 1,
+        "area_scope": 2,
+        "single_area_code": "110100"
+    }'
+    ```
+    
+    ### 发布多城市任务
+    ```bash
+    curl -X POST "http://127.0.0.1:9099/yozuan/v1/task/publish" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -d '{
+        "task_name": "珠三角地区任务",
+        "task_description": "覆盖广州、深圳、东莞等城市",
+        "task_price": 12.00,
+        "task_quantity": 500,
+        "task_type_id": 1,
+        "area_scope": 3,
+        "area_codes": ["440100", "440300", "441900"]
+    }'
+    ```
+    
+    ## 注意事项
+    
+    1. **余额要求**：发布任务前请确保账户余额充足，系统会自动冻结任务总金额
+    
+    2. **地区范围类型必须与相关字段匹配**：
+       - `area_scope=1`：无需地区相关字段
+       - `area_scope=2`：必须提供 `single_area_code`
+       - `area_scope=3`：必须提供 `area_codes` 数组
+    
+    3. **城市编码格式**：必须使用6位国标行政区域代码
+    
+    4. **数据验证**：系统会自动验证必填字段和字段格式
+    
+    5. **新的地区管理方式**：使用 `area_scope` + `single_area_code`/`area_codes` 替代旧的 `region_limit` 字段
     """
     try:
         # 1. 验证任务数据
@@ -436,34 +547,109 @@ async def publish_task(
         if len(verifications) > yozuan_config.yozuan_task_max_verifications:
             return ResponseUtil.error(f"验证要求不能超过 {yozuan_config.yozuan_task_max_verifications} 个")
         
-        # 5. 检查用户余额是否足够
+        # 5. 获取用户账户并计算任务总金额
         from ..dao.account_dao import AccountDao
         account_dao = AccountDao(db)
-        # 获取或创建用户账户（如果不存在会自动创建）
         user_account = await account_dao.get_or_create_user_account(current_user.user_id)
         
+        # 计算任务总金额
         total_cost = task_price * task_data["task_quantity"]
-        if user_account.balance < total_cost:
-            from utils.response_util import ResponseUtil
-            return ResponseUtil.error("账户余额不足，无法发布任务")
         
-        # 6. 创建任务
-        # 准备任务数据，包含发布者ID
+        # 6. 准备任务数据，包含发布者ID
         task_data_with_publisher = task_data.copy()
         task_data_with_publisher['publisher_id'] = current_user.user_id
+        
+        # 设置任务总金额
+        task_data_with_publisher['total_amount'] = total_cost
+        
+        # 计算平台手续费（假设为总金额的5%）
+        service_fee_rate = 0.05  # 5%手续费率
+        task_data_with_publisher['service_fee'] = round(task_data_with_publisher['total_amount'] * service_fee_rate, 2)
+        
+        # 设置默认的完成时限和审核时限
+        task_data_with_publisher['completion_hours'] = task_data.get('completion_hours', 24)  # 默认24小时
+        task_data_with_publisher['review_hours'] = task_data.get('review_hours', 48)  # 默认48小时
+        
+        # 处理地区范围类型
+        area_scope = task_data.get('area_scope', 1)  # 默认全国
+        task_data_with_publisher['area_scope'] = area_scope
+        
+        # 根据地区范围类型处理地区数据
+        if area_scope == 1:  # 全国
+            task_data_with_publisher['single_area_code'] = None
+            
+        elif area_scope == 2:  # 单个城市
+            if 'single_area_code' not in task_data:
+                return ResponseUtil.error("单个城市任务必须指定城市编码")
+            task_data_with_publisher['single_area_code'] = task_data['single_area_code']
+            
+        elif area_scope == 3:  # 多个城市
+            if 'area_codes' not in task_data or not task_data['area_codes']:
+                return ResponseUtil.error("多个城市任务必须指定城市编码列表")
+            task_data_with_publisher['single_area_code'] = None
+        
+        # 将task_deadline映射到end_time字段
+        if 'task_deadline' in task_data_with_publisher:
+            from datetime import datetime
+            try:
+                # 解析ISO格式的时间字符串
+                deadline = datetime.fromisoformat(task_data_with_publisher['task_deadline'])
+                task_data_with_publisher['end_time'] = deadline
+                # 移除task_deadline字段，避免模型验证错误
+                del task_data_with_publisher['task_deadline']
+            except ValueError as e:
+                return ResponseUtil.error(f"任务截止时间格式错误: {str(e)}")
+        
+        # 将task_tags映射到task_tag字段
+        if 'task_tags' in task_data_with_publisher:
+            # 将标签数组转换为逗号分隔的字符串
+            task_data_with_publisher['task_tag'] = ','.join(task_data_with_publisher['task_tags'])
+            del task_data_with_publisher['task_tags']
+        
+        # 移除其他不在模型中的字段
+        fields_to_remove = ['steps', 'verifications', 'bonus_conditions', 'special_requirements', 'contact_info', 'task_regions', 'area_codes']
+        for field in fields_to_remove:
+            if field in task_data_with_publisher:
+                del task_data_with_publisher[field]
+        
+        # 6. 验证用户余额是否足够
+        print(f"DEBUG: 余额检查 - 用户余额: {user_account.balance}, 任务总成本: {total_cost}")
+        if float(user_account.balance) < total_cost:
+            return ResponseUtil.error(f"余额不足，当前余额: {user_account.balance}，需要: {total_cost}")
+        
+        print(f"DEBUG: 余额充足，开始冻结 {total_cost} 元")
         
         task_dao = TaskDao(db)
         task = await task_dao.create_task(task_data_with_publisher)
         
-        # 7. 处理任务地区关联
-        if "task_regions" in task_data and task_data["task_regions"]:
-            task_region_dao = TaskRegionDao(db)
-            await task_region_dao.create_task_regions(task.task_id, task_data["task_regions"])
+        # 7. 处理任务城市关联（仅多城市任务）
+        if area_scope == 3 and 'area_codes' in task_data:
+            await task_dao.create_task_city_relations(task.task_id, task_data['area_codes'])
         
-        # 7. 冻结用户余额
+        # 8. 冻结用户余额
+        print(f"DEBUG: 开始冻结余额: {total_cost}")
         await account_dao.update_balance(
-            db, current_user.user_id, total_cost, "freeze"
+            current_user.user_id, total_cost, "freeze"
         )
+        print(f"DEBUG: 余额冻结完成")
+        
+        # 9. 创建冻结交易记录
+        await account_dao.create_transaction(
+            account_id=user_account.account_id,
+            transaction_type="task_freeze",
+            amount=total_cost,
+            description=f"任务发布冻结: {task.task_name}",
+            related_id=task.task_id
+        )
+        
+        # 10. 重新查询冻结后的账户余额
+        await db.flush()
+        updated_account = await account_dao.get_user_account(current_user.user_id)
+        
+        print(f"DEBUG: 冻结后余额查询结果:")
+        print(f"  - 可用余额: {updated_account.balance}")
+        print(f"  - 冻结余额: {updated_account.frozen_amount}")
+        print(f"  - 任务总成本: {total_cost}")
         
         return {
             "code": 200,
@@ -471,7 +657,9 @@ async def publish_task(
             "data": {
                 "task_id": task.task_id,
                 "task_name": task.task_name,
-                "total_cost": total_cost
+                "total_cost": total_cost,
+                "balance_after": float(updated_account.balance),
+                "frozen_amount_after": float(updated_account.frozen_amount)
             },
             "success": True
         }
@@ -491,7 +679,8 @@ async def update_task(
         "device_limit": "both",
         "frequency_limit": "once_per_week",
         "task_deadline": "2024-12-31T23:59:59",
-        "task_region": "全国",
+        "area_scope": 3,  # 更新为多城市任务
+        "area_codes": ["440100", "440300"],  # 广州、深圳
         "task_tags": ["更新", "简单"],
         "steps": [
             {
@@ -532,47 +721,130 @@ async def update_task(
     ## 请求参数说明
     
     ### 基本信息 (可选)
-    - **task_name** (string, 可选): 任务名称，长度1-100字符
-    - **task_description** (string, 可选): 任务详细描述，长度10-2000字符
-    - **task_price** (float, 可选): 单个任务价格，范围0.01-10000元
-    - **task_quantity** (integer, 可选): 任务数量，范围1-10000
-    - **task_type_id** (integer, 可选): 任务类型ID，参考 `/types` 接口
+    - **task_name** (string, 可选): 任务名称，最大100字符
+    - **task_description** (string, 可选): 任务详细描述
+    - **task_price** (float, 可选): 单个任务价格，支持2位小数
+    - **task_quantity** (integer, 可选): 任务数量
+    - **task_type_id** (integer, 可选): 任务类型ID
     
-    ### 任务限制 (可选)
-    - **device_limit** (string, 可选): 设备限制，可选值：`mobile`(手机), `pc`(电脑), `both`(不限)
-    - **frequency_limit** (string, 可选): 频率限制，可选值：`once`(一次), `once_per_day`(每日一次), `once_per_week`(每周一次), `unlimited`(不限)
-    - **task_deadline** (string, 可选): 任务截止时间，ISO 8601格式
-    - **task_region** (string, 可选): 任务地区限制
+    ### 地区范围配置 (可选)
+    - **area_scope** (integer, 可选): 地区范围类型
+        - `1` = 全国：任务覆盖全国所有地区
+        - `2` = 单个城市：任务仅覆盖指定的单个城市
+        - `3` = 多个城市：任务覆盖指定的多个城市
+    
+    #### 地区范围类型更新说明
+    
+    **更新为全国任务 (area_scope = 1)**
+    ```json
+    {
+        "area_scope": 1
+        // 系统会自动清除single_area_code和城市关联
+    }
+    ```
+    
+    **更新为单个城市任务 (area_scope = 2)**
+    ```json
+    {
+        "area_scope": 2,
+        "single_area_code": "110100"  // 必须提供城市编码
+    }
+    ```
+    
+    **更新为多个城市任务 (area_scope = 3)**
+    ```json
+    {
+        "area_scope": 3,
+        "area_codes": ["440100", "440300"]  // 必须提供城市编码数组
+    }
+    ```
+    
+    ### 城市编码说明
+    城市编码采用国标行政区域代码（6位数字）：
+    - **110100**：北京市
+    - **310100**：上海市
+    - **440100**：广州市
+    - **440300**：深圳市
+    - **441900**：东莞市
+    
+    ### 其他配置 (可选)
+    - **device_limit** (string, 可选): 设备限制，可选值：`all`/`android`/`ios`
+    - **frequency_limit** (string, 可选): 限制次数，可选值：`once`/`daily`/`thrice`
+    - **task_deadline** (string, 可选): 任务截止时间，ISO格式：`2024-12-31T23:59:59`
     - **task_tags** (array, 可选): 任务标签数组
+    - **completion_hours** (integer, 可选): 完成时限（小时）
+    - **review_hours** (integer, 可选): 审核时限（小时）
     
-    ### 任务步骤 (可选)
-    - **steps** (array, 可选): 任务步骤数组，格式同发布任务接口
-    - **verifications** (array, 可选): 验证要求数组，格式同发布任务接口
-    - **bonus_conditions** (array, 可选): 奖励条件数组，格式同发布任务接口
-    - **special_requirements** (string, 可选): 特殊要求说明
+    ### 高级配置 (可选)
+    - **steps** (array, 可选): 任务步骤详情
+    - **verifications** (array, 可选): 验证要求
+    - **bonus_conditions** (array, 可选): 奖励条件
+    - **special_requirements** (string, 可选): 特殊要求
     - **contact_info** (object, 可选): 联系方式
-    
-    ## 业务规则
-    
-    1. **权限检查**: 只有任务发布者可以更新任务
-    2. **状态限制**: 只有草稿状态的任务可以更新
-    3. **部分更新**: 支持部分字段更新，未提供的字段保持原值
-    4. **数据验证**: 更新的数据会进行验证，不符合要求的数据会被拒绝
     
     ## 响应说明
     
-    - **code**: 200表示成功
-    - **msg**: 响应消息
-    - **data**: 包含更新后的task_id、task_name和update_time
-    - **success**: 操作是否成功
+    ### 成功响应
+    ```json
+    {
+        "code": 200,
+        "msg": "任务更新成功",
+        "data": {
+            "task_id": 123,
+            "task_name": "更新后的任务名称",
+            "area_scope": 3,
+            "area_scope_display": "多个城市"
+        },
+        "success": true
+    }
+    ```
     
-    ## 错误码说明
+    ### 错误响应
+    ```json
+    {
+        "code": 400,
+        "msg": "任务更新失败: 多个城市任务必须指定城市编码列表",
+        "success": false
+    }
+    ```
     
-    - **400**: 请求参数错误或任务状态不允许更新
-    - **401**: 用户未认证
-    - **403**: 权限不足（非任务发布者）
-    - **404**: 任务不存在
-    - **500**: 服务器内部错误
+    ## 使用示例
+    
+    ### 更新任务基本信息
+    ```bash
+    curl -X PUT "http://127.0.0.1:9099/yozuan/v1/task/123/update" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -d '{
+        "task_name": "更新后的任务名称",
+        "task_price": 20.00
+    }'
+    ```
+    
+    ### 更新任务地区范围
+    ```bash
+    curl -X PUT "http://127.0.0.1:9099/yozuan/v1/task/123/update" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -d '{
+        "area_scope": 2,
+        "single_area_code": "310100"
+    }'
+    ```
+    
+    ## 注意事项
+    
+    1. **部分更新**：只需提供要更新的字段，其他字段保持不变
+    
+    2. **地区范围更新**：更新 `area_scope` 时，系统会自动处理相关字段：
+       - 清除旧的地区关联
+       - 设置新的地区配置
+    
+    3. **数据验证**：系统会验证更新后的数据格式和一致性
+    
+    4. **权限检查**：只能更新自己发布的任务
+    
+    5. **新的地区管理方式**：使用 `area_scope` + `single_area_code`/`area_codes` 替代旧的 `region_limit` 字段
     """
     try:
         # 1. 检查任务是否存在
@@ -599,7 +871,74 @@ async def update_task(
             )
         
         # 4. 更新任务
+        # 如果更新了价格或数量，需要重新计算总金额和手续费
+        if 'task_price' in task_data or 'task_quantity' in task_data:
+            # 获取当前任务信息来计算新的总金额
+            current_task = await task_dao.get_task_by_id(task_id)
+            if current_task:
+                new_price = float(task_data.get('task_price', current_task.task_price))
+                new_quantity = int(task_data.get('task_quantity', current_task.task_quantity))
+                
+                # 计算新的总金额
+                task_data['total_amount'] = new_price * new_quantity
+                
+                # 计算新的平台手续费（假设为总金额的5%）
+                service_fee_rate = 0.05  # 5%手续费率
+                task_data['service_fee'] = round(task_data['total_amount'] * service_fee_rate, 2)
+        
+        # 处理地区范围类型更新
+        if 'area_scope' in task_data:
+            area_scope = task_data['area_scope']
+            
+            if area_scope == 1:  # 全国
+                task_data['single_area_code'] = None
+                
+            elif area_scope == 2:  # 单个城市
+                if 'single_area_code' not in task_data:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="单个城市任务必须指定城市编码"
+                    )
+                
+            elif area_scope == 3:  # 多个城市
+                if 'area_codes' not in task_data or not task_data['area_codes']:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="多个城市任务必须指定城市编码列表"
+                    )
+                task_data['single_area_code'] = None
+        
+        # 将task_deadline映射到end_time字段
+        if 'task_deadline' in task_data:
+            from datetime import datetime
+            try:
+                # 解析ISO格式的时间字符串
+                deadline = datetime.fromisoformat(task_data['task_deadline'])
+                task_data['end_time'] = deadline
+                # 移除task_deadline字段，避免模型验证错误
+                del task_data['task_deadline']
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"任务截止时间格式错误: {str(e)}"
+                )
+        
+        # 移除其他不在模型中的字段
+        fields_to_remove = ['steps', 'verifications', 'bonus_conditions', 'special_requirements', 'contact_info', 'task_regions', 'area_codes']
+        for field in fields_to_remove:
+            if field in task_data:
+                del task_data[field]
+        
         updated_task = await task_dao.update_task(task_id, task_data)
+        
+        # 如果更新了地区范围类型，需要更新城市关联
+        if 'area_scope' in task_data:
+            # 删除旧的城市关联
+            await task_dao.delete_task_cities(task_id)
+            
+            # 创建新的城市关联（仅多城市任务）
+            if task_data['area_scope'] == 3 and 'area_codes' in task_data:
+                await task_dao.create_task_city_relations(task_id, task_data['area_codes'])
         
         return {
             "code": 200,
@@ -662,9 +1001,8 @@ async def delete_task(
         
         # 5. 解冻用户余额
         total_cost = float(existing_task.task_price) * existing_task.task_quantity
-        from ..dao.account_dao import AccountDao
-        await AccountDao.update_balance(
-            db, current_user.user_id, total_cost, "unfreeze"
+        await account_dao.update_balance(
+            current_user.user_id, total_cost, "unfreeze"
         )
         
         return {
@@ -864,17 +1202,16 @@ async def review_task_completion(
             )
             
             # 解冻发布者余额并支付接单者
-            from ..dao.account_dao import AccountDao
             total_payment = float(task.task_price) + review_data.get("bonus_amount", 0.0)
             
             # 解冻发布者余额
-            await AccountDao.update_balance(
-                db, current_user.user_id, total_payment, "unfreeze"
+            await account_dao.update_balance(
+                current_user.user_id, total_payment, "unfreeze"
             )
             
             # 支付接单者
-            await AccountDao.transfer_commission(
-                db, order.user_id, total_payment, order_id, "任务完成奖励"
+            await account_dao.transfer_commission(
+                current_user.user_id, order.user_id, total_payment, task_id, order_id
             )
             
             msg = "任务审核通过，返佣处理完成"
@@ -890,9 +1227,8 @@ async def review_task_completion(
             await order_dao.update_order_status(order_id, "rejected")
             
             # 解冻发布者余额（不支付接单者）
-            from ..dao.account_dao import AccountDao
-            await AccountDao.update_balance(
-                db, current_user.user_id, float(task.task_price), "unfreeze"
+            await account_dao.update_balance(
+                current_user.user_id, float(task.task_price), "unfreeze"
             )
             
             msg = "任务审核驳回，余额已解冻"

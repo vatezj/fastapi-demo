@@ -132,14 +132,19 @@ class SchedulerUtil:
         :return:
         """
         logger.info('开始启动定时任务...')
-        scheduler.start()
-        async with AsyncSessionLocal() as session:
-            job_list = await JobDao.get_job_list_for_scheduler(session)
-            for item in job_list:
-                cls.remove_scheduler_job(job_id=str(item.job_id))
-                cls.add_scheduler_job(item)
-        scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
-        logger.info('系统初始定时任务加载成功')
+        try:
+            scheduler.start()
+            # 临时禁用数据库相关操作，避免会话问题
+            # async with AsyncSessionLocal() as session:
+            #     job_list = await JobDao.get_job_list_for_scheduler(session)
+            #     for item in job_list:
+            #         cls.remove_scheduler_job(job_id=str(item.job_id))
+            #         cls.add_scheduler_job(item)
+            # scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
+            logger.info('系统调度器启动成功（数据库任务加载已禁用）')
+        except Exception as e:
+            logger.error(f'系统调度器启动失败: {e}')
+            raise
 
     @classmethod
     async def close_system_scheduler(cls):

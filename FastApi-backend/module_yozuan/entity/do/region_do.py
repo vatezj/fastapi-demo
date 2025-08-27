@@ -3,11 +3,9 @@
 """
 
 from sqlalchemy import Column, String, Integer, DateTime, Enum, Text
-from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from typing import Optional
-
-Base = declarative_base()
+from config.database import Base
 
 
 class YozuanRegion(Base):

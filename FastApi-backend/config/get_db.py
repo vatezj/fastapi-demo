@@ -5,15 +5,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 async def get_db() -> AsyncSession:
     """
-    每一个请求处理完毕后会关闭当前连接，不同的请求使用不同的连接
+    数据库会话依赖函数
     
-    使用更简单的会话管理方式，避免复杂的异常处理
+    为FastAPI提供数据库会话依赖，优化异步上下文管理
     """
     session = AsyncSessionLocal()
     try:
+        # 确保会话在正确的异步上下文中
         yield session
+    except Exception as e:
+        # 记录错误并回滚
+        logger.error(f"数据库会话异常: {str(e)}")
+        try:
+            await session.rollback()
+        except Exception as rollback_error:
+            logger.error(f"回滚失败: {str(rollback_error)}")
+        raise
     finally:
-        await session.close()
+        try:
+            await session.close()
+        except Exception as close_error:
+            logger.error(f"关闭会话失败: {str(close_error)}")
 
 
 async def init_create_table():

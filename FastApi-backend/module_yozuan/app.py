@@ -12,6 +12,7 @@ from .controller.admin import (
     admin_controller, task_admin_controller, order_admin_router, 
     user_admin_router, finance_admin_router, system_admin_router
 )
+from exceptions.handle import handle_exception
 
 # 创建专门的游赚模块FastAPI应用
 yozuan_app = FastAPI(
@@ -22,6 +23,9 @@ yozuan_app = FastAPI(
     redoc_url='/redoc',
     openapi_url='/openapi.json',
 )
+
+# 注册异常处理器到子应用
+handle_exception(yozuan_app)
 
 # 注册游赚模块的路由
 

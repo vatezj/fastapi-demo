@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_, or_, func
 from sqlalchemy.orm import selectinload
-from ..entity.do.task_do import YozuanTask, YozuanTaskType, YozuanTaskStep, YozuanTaskTag
+from ..entity.do.task_do import YozuanTask, YozuanTaskType, YozuanTaskStep, YozuanTaskTag, YozuanTaskCityRel
 from ..enums.task_enums import TaskStatus
 
 
@@ -23,6 +23,47 @@ class TaskDao:
         await self.db.commit()
         await self.db.refresh(task)
         return task
+    
+    async def create_task_city_relations(self, task_id: int, area_codes: List[str]) -> List[YozuanTaskCityRel]:
+        """创建任务城市关联"""
+        if not area_codes:
+            return []
+        
+        task_cities = []
+        for area_code in area_codes:
+            task_city = YozuanTaskCityRel(
+                task_id=task_id,
+                area_code=area_code
+            )
+            task_cities.append(task_city)
+        
+        self.db.add_all(task_cities)
+        await self.db.commit()
+        
+        # 刷新获取ID
+        for tc in task_cities:
+            await self.db.refresh(tc)
+        
+        return task_cities
+    
+    async def get_task_cities(self, task_id: int) -> List[str]:
+        """获取任务关联的城市编码列表"""
+        result = await self.db.execute(
+            select(YozuanTaskCityRel.area_code).where(
+                YozuanTaskCityRel.task_id == task_id
+            ).order_by(YozuanTaskCityRel.area_code)
+        )
+        return [row[0] for row in result.fetchall()]
+    
+    async def delete_task_cities(self, task_id: int) -> bool:
+        """删除任务的所有城市关联"""
+        result = await self.db.execute(
+            delete(YozuanTaskCityRel).where(
+                YozuanTaskCityRel.task_id == task_id
+            )
+        )
+        await self.db.commit()
+        return result.rowcount > 0
     
     async def get_task_by_id(self, task_id: int) -> Optional[YozuanTask]:
         """根据ID获取任务"""

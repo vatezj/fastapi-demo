@@ -13,34 +13,46 @@ class AppUserDao:
     @staticmethod
     async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[AppUser]:
         """根据用户ID获取用户信息"""
-        result = await db.execute(
-            select(AppUser).where(AppUser.user_id == user_id)
-        )
-        return result.scalar_one_or_none()
+        try:
+            result = await db.execute(
+                select(AppUser).where(AppUser.user_id == user_id)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            raise ValueError(f"查询用户失败 (user_id={user_id}): {str(e)}")
     
     @staticmethod
     async def get_user_by_username(db: AsyncSession, user_name: str) -> Optional[AppUser]:
         """根据用户名获取用户信息"""
-        result = await db.execute(
-            select(AppUser).where(AppUser.user_name == user_name)
-        )
-        return result.scalar_one_or_none()
+        try:
+            result = await db.execute(
+                select(AppUser).where(AppUser.user_name == user_name)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            raise ValueError(f"查询用户失败 (user_name={user_name}): {str(e)}")
     
     @staticmethod
     async def get_user_by_phone(db: AsyncSession, phone: str) -> Optional[AppUser]:
         """根据手机号获取用户信息"""
-        result = await db.execute(
-            select(AppUser).where(AppUser.phone == phone)
-        )
-        return result.scalar_one_or_none()
+        try:
+            result = await db.execute(
+                select(AppUser).where(AppUser.phone == phone)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            raise ValueError(f"查询用户失败 (phone={phone}): {str(e)}")
     
     @staticmethod
     async def get_user_by_email(db: AsyncSession, email: str) -> Optional[AppUser]:
         """根据邮箱获取用户信息"""
-        result = await db.execute(
-            select(AppUser).where(AppUser.email == email)
-        )
-        return result.scalar_one_or_none()
+        try:
+            result = await db.execute(
+                select(AppUser).where(AppUser.email == email)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            raise ValueError(f"查询用户失败 (email={email}): {str(e)}")
     
     @staticmethod
     async def get_user_with_profile(db: AsyncSession, user_id: int) -> Optional[Dict[str, Any]]:
