@@ -4,7 +4,7 @@
 
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, and_, func
+from sqlalchemy import select, update, delete, and_, func, cast, Numeric
 from ..entity.do.account_do import YozuanUserAccount, YozuanAccountTransaction
 from ..enums.task_enums import TransactionType, TransactionStatus
 import logging
@@ -63,39 +63,80 @@ class AccountDao:
                                    transaction_type: str, description: str = None,
                                    related_id: int = None) -> bool:
         """更新账户余额"""
-        account = await self.get_user_account(user_id)
-        if not account:
-            return False
-        
-        # 计算新余额
-        balance_before = float(account.balance)
-        balance_after = balance_before + amount
+        try:
+            print(f"DEBUG: update_account_balance 开始 - user_id={user_id}, amount={amount}, type={type(amount)}")
+            
+            account = await self.get_user_account(user_id)
+            if not account:
+                print(f"DEBUG: 账户不存在 - user_id={user_id}")
+                return False
+            
+            print(f"DEBUG: 账户信息 - balance={account.balance}, type={type(account.balance)}")
+            
+            # 计算新余额
+            balance_before = float(account.balance)
+            print(f"DEBUG: balance_before={balance_before}, type={type(balance_before)}")
+            print(f"DEBUG: amount={amount}, type={type(amount)}")
+            
+            balance_after = balance_before + amount
+            print(f"DEBUG: balance_after={balance_after}, type={type(balance_after)}")
+        except Exception as e:
+            print(f"DEBUG: 计算余额时出错: {str(e)}")
+            raise
         
         # 更新账户余额
-        update_query = update(YozuanUserAccount).where(
-            YozuanUserAccount.user_id == user_id
-        ).values(
-            balance=balance_after,
-            total_income=YozuanUserAccount.total_income + (amount if amount > 0 else 0),
-            total_withdraw=YozuanUserAccount.total_withdraw + (abs(amount) if amount < 0 else 0)
-        )
-        
-        result = await self.db.execute(update_query)
+        try:
+            print(f"DEBUG: 准备更新账户余额")
+            print(f"DEBUG: balance_after={balance_after}, type={type(balance_after)}")
+            print(f"DEBUG: amount={amount}, type={type(amount)}")
+            
+            # 使用更安全的方式处理类型转换
+            income_increment = float(amount) if amount > 0 else 0
+            withdraw_increment = float(abs(amount)) if amount < 0 else 0
+            
+            update_query = update(YozuanUserAccount).where(
+                YozuanUserAccount.user_id == user_id
+            ).values(
+                balance=float(balance_after),
+                total_income=func.coalesce(YozuanUserAccount.total_income, 0) + cast(income_increment, Numeric(10, 2)),
+                total_withdraw=func.coalesce(YozuanUserAccount.total_withdraw, 0) + cast(withdraw_increment, Numeric(10, 2))
+            )
+            
+            print(f"DEBUG: 执行更新查询")
+            result = await self.db.execute(update_query)
+            print(f"DEBUG: 更新查询执行成功，影响行数: {result.rowcount}")
+        except Exception as e:
+            print(f"DEBUG: 更新账户余额时出错: {str(e)}")
+            raise
         
         # 创建交易记录
-        transaction = YozuanAccountTransaction(
-            account_id=account.account_id,
-            transaction_type=transaction_type,
-            amount=abs(amount),
-            balance_before=balance_before,
-            balance_after=balance_after,
-            description=description,
-            status=TransactionStatus.SUCCESS,
-            related_id=related_id
-        )
-        
-        self.db.add(transaction)
-        await self.db.commit()
+        try:
+            print(f"DEBUG: 准备创建交易记录")
+            print(f"DEBUG: account_id={account.account_id}")
+            print(f"DEBUG: transaction_type={transaction_type}")
+            print(f"DEBUG: amount={abs(amount)}, type={type(abs(amount))}")
+            print(f"DEBUG: balance_before={balance_before}, type={type(balance_before)}")
+            print(f"DEBUG: balance_after={balance_after}, type={type(balance_after)}")
+            
+            transaction = YozuanAccountTransaction(
+                account_id=account.account_id,
+                transaction_type=transaction_type,
+                amount=abs(amount),
+                balance_before=balance_before,
+                balance_after=balance_after,
+                description=description,
+                status=TransactionStatus.SUCCESS,
+                related_id=related_id
+            )
+            
+            print(f"DEBUG: 交易记录对象创建成功")
+            self.db.add(transaction)
+            print(f"DEBUG: 交易记录添加到数据库会话")
+            await self.db.commit()
+            print(f"DEBUG: 数据库提交成功")
+        except Exception as e:
+            print(f"DEBUG: 创建交易记录时出错: {str(e)}")
+            raise
         
         return result.rowcount > 0
     
@@ -109,8 +150,8 @@ class AccountDao:
         freeze_query = update(YozuanUserAccount).where(
             YozuanUserAccount.user_id == user_id
         ).values(
-            balance=YozuanUserAccount.balance - amount,
-            frozen_amount=YozuanUserAccount.frozen_amount + amount
+            balance=YozuanUserAccount.balance - float(amount),
+            frozen_amount=YozuanUserAccount.frozen_amount + float(amount)
         )
         
         result = await self.db.execute(freeze_query)
@@ -127,8 +168,8 @@ class AccountDao:
         unfreeze_query = update(YozuanUserAccount).where(
             YozuanUserAccount.user_id == user_id
         ).values(
-            balance=YozuanUserAccount.balance + amount,
-            frozen_amount=YozuanUserAccount.frozen_amount - amount
+            balance=YozuanUserAccount.balance + float(amount),
+            frozen_amount=YozuanUserAccount.frozen_amount - float(amount)
         )
         
         result = await self.db.execute(unfreeze_query)
@@ -325,8 +366,8 @@ class AccountDao:
             update_query = update(YozuanUserAccount).where(
                 YozuanUserAccount.user_id == user_id
             ).values(
-                balance=balance_after,
-                frozen_amount=frozen_after
+                balance=float(balance_after),
+                frozen_amount=float(frozen_after)
             )
             print(f"DEBUG: 更新账户余额查询: {update_query}")
             
@@ -484,3 +525,44 @@ class AccountDao:
             
         except Exception as e:
             raise ValueError(f"获取提现记录失败 (user_id={user_id}): {str(e)}")
+    
+    async def update_transaction_related_id(self, user_id: int, transaction_type: str, related_id: int) -> bool:
+        """更新交易记录中的关联ID"""
+        try:
+            # 获取用户账户
+            account = await self.get_user_account(user_id)
+            if not account:
+                return False
+            
+            # 先查询最新的指定类型交易记录
+            query = select(YozuanAccountTransaction.transaction_id).where(
+                and_(
+                    YozuanAccountTransaction.account_id == account.account_id,
+                    YozuanAccountTransaction.transaction_type == transaction_type,
+                    YozuanAccountTransaction.related_id == 0  # 只更新related_id为0的记录
+                )
+            ).order_by(
+                YozuanAccountTransaction.create_time.desc()
+            ).limit(1)
+            
+            result = await self.db.execute(query)
+            transaction_id = result.scalar_one_or_none()
+            
+            if not transaction_id:
+                return False
+            
+            # 更新找到的交易记录
+            update_query = update(YozuanAccountTransaction).where(
+                YozuanAccountTransaction.transaction_id == transaction_id
+            ).values(related_id=related_id)
+            
+            result = await self.db.execute(update_query)
+            await self.db.commit()
+            
+            return result.rowcount > 0
+            
+        except Exception as e:
+            logger.error(f"更新交易记录关联ID失败 (user_id={user_id}): {str(e)}")
+            if self.db:
+                await self.db.rollback()
+            return False

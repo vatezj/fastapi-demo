@@ -68,6 +68,8 @@ class TransactionType(str, Enum):
     TASK_COMMISSION = "task_commission"  # 任务佣金
     REBATE = "rebate"               # 返佣
     FEE = "fee"                     # 手续费
+    TASK_FREEZE = "task_freeze"     # 任务冻结
+    TASK_UNFREEZE = "task_unfreeze" # 任务解冻
 
 
 class TransactionStatus(str, Enum):
@@ -143,7 +145,9 @@ TRANSACTION_TYPE_DISPLAY = {
     TransactionType.WITHDRAW: "提现",
     TransactionType.TASK_COMMISSION: "任务佣金",
     TransactionType.REBATE: "返佣",
-    TransactionType.FEE: "手续费"
+    TransactionType.FEE: "手续费",
+    TransactionType.TASK_FREEZE: "任务冻结",
+    TransactionType.TASK_UNFREEZE: "任务解冻"
 }
 
 TRANSACTION_STATUS_DISPLAY = {

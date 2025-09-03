@@ -16,8 +16,22 @@ class TaskDao:
     def __init__(self, db: AsyncSession):
         self.db = db
     
+    async def calculate_service_fee(self, task_type_id: int, task_quantity: int, task_price: float) -> float:
+        """计算任务服务费"""
+        # 使用默认的5%手续费
+        service_fee = (task_price * task_quantity * 5.0) / 100
+        return round(service_fee, 2)
+
     async def create_task(self, task_data: Dict[str, Any]) -> YozuanTask:
         """创建任务"""
+        # 计算服务费
+        if 'service_fee' not in task_data:
+            task_type_id = task_data.get('task_type_id', 1)
+            task_quantity = task_data.get('task_quantity', 1)
+            task_price = float(task_data.get('task_price', 0))
+            service_fee = await self.calculate_service_fee(task_type_id, task_quantity, task_price)
+            task_data['service_fee'] = service_fee
+        
         task = YozuanTask(**task_data)
         self.db.add(task)
         await self.db.commit()
@@ -246,8 +260,18 @@ class TaskStepDao:
         """创建任务步骤"""
         steps = []
         for step_data in steps_data:
-            step_data["task_id"] = task_id
-            step = YozuanTaskStep(**step_data)
+            # 字段映射
+            mapped_step_data = {
+                "task_id": task_id,
+                "step_order": step_data.get("step_order", 1),
+                "step_title": step_data.get("step_title", ""),
+                "step_description": step_data.get("step_description", ""),
+                "step_type": step_data.get("step_type", "text"),
+                "step_content": step_data.get("step_url") or step_data.get("step_target") or step_data.get("step_content", ""),
+                "is_required": 1 if step_data.get("step_required", True) else 0
+            }
+            
+            step = YozuanTaskStep(**mapped_step_data)
             steps.append(step)
         
         self.db.add_all(steps)
