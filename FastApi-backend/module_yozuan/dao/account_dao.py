@@ -283,10 +283,28 @@ class AccountDao:
             elif operation == "freeze":
                 if balance_before < amount:
                     return False
+                
+                # 添加详细的调试信息
+                print(f"DEBUG: 冻结操作详细计算:")
+                print(f"  - user_id: {user_id}")
+                print(f"  - balance_before: {balance_before} (类型: {type(balance_before)})")
+                print(f"  - amount: {amount} (类型: {type(amount)})")
+                print(f"  - frozen_before: {frozen_before}")
+                
                 # 冻结：从可用余额中扣除，添加到冻结余额
-                # 这样确保用户不能重复冻结超过余额的金额
                 balance_after = balance_before - amount
                 frozen_after = frozen_before + amount
+                
+                print(f"  - balance_after: {balance_after} (类型: {type(balance_after)})")
+                print(f"  - frozen_after: {frozen_after}")
+                
+                # 检查计算结果是否合理
+                if balance_after < 0:
+                    print(f"ERROR: 余额计算结果为负数: {balance_after}")
+                    return False
+                
+                if abs(balance_after) < 0.01:  # 如果余额接近0
+                    print(f"WARNING: 余额接近0: {balance_after}")
                 
                 # 添加调试日志
                 logger.info(f"冻结操作详情: user_id={user_id}, amount={amount}")
@@ -299,7 +317,10 @@ class AccountDao:
                 frozen_after = frozen_before - amount
             else:
                 return False
-            
+            print(f"DEBUG: 更新账户余额: user_id={user_id}, amount={amount}, operation={operation}")
+            print(f"DEBUG: 冻结前: balance={balance_before}, frozen={frozen_before}")
+            print(f"DEBUG: 冻结后: balance={balance_after}, frozen={frozen_after}")
+
             # 更新账户余额
             update_query = update(YozuanUserAccount).where(
                 YozuanUserAccount.user_id == user_id
@@ -307,8 +328,10 @@ class AccountDao:
                 balance=balance_after,
                 frozen_amount=frozen_after
             )
+            print(f"DEBUG: 更新账户余额查询: {update_query}")
             
             result = await self.db.execute(update_query)
+            print(f"DEBUG: 更新账户余额结果: {result.rowcount}")
             await self.db.commit()
             
             return result.rowcount > 0
@@ -337,14 +360,47 @@ class AccountDao:
             # 检查数据库会话状态
             if not self.db:
                 raise ValueError("数据库会话无效")
+                
+            print(f"DEBUG: 创建交易记录: account_id={account_id}, transaction_type={transaction_type}, amount={amount}, description={description}, related_id={related_id}")
+            
+            # 获取当前账户余额（确保是最新的）
+            account = await self.get_user_account_by_id(account_id)
+            if not account:
+                raise ValueError(f"账户不存在: {account_id}")
+            
+            # 计算正确的余额
+            balance_before = float(account.balance)
+            balance_after = float(account.balance)  # 使用当前实际余额
+            
+            print(f"DEBUG: 创建交易记录: amount={amount}, balance_before={balance_before}, balance_after={balance_after}")  
+            
+            # 根据交易类型调整余额
+            if transaction_type == "task_freeze":
+                # 冻结交易：余额应该减少
+                balance_after = balance_before - amount
+            elif transaction_type in ["recharge", "rebate", "task_commission"]:
+                # 收入交易：余额应该增加
+                balance_after = balance_before + amount
+            elif transaction_type == "withdraw":
+                # 提现交易：余额应该减少
+                balance_after = balance_before - amount
+            elif transaction_type == "task_unfreeze":
+                # 解冻交易：余额应该增加
+                balance_after = balance_before + amount
+            
+            print(f"DEBUG: 交易记录余额计算:")
+            print(f"  - balance_before: {balance_before}")
+            print(f"  - balance_after: {balance_after}")
+            print(f"  - transaction_type: {transaction_type}")
+            print(f"  - amount: {amount}")
             
             # 创建交易记录
             transaction_data = {
                 "account_id": account_id,
                 "transaction_type": transaction_type,
                 "amount": amount,
-                "balance_before": kwargs.get("balance_before", 0.0),
-                "balance_after": kwargs.get("balance_after", 0.0),
+                "balance_before": balance_before,
+                "balance_after": balance_after,
                 "description": description,
                 "status": "success",
                 "related_id": related_id
@@ -355,10 +411,14 @@ class AccountDao:
                 if hasattr(YozuanAccountTransaction, key):
                     transaction_data[key] = value
             
+            print(f"DEBUG: 创建交易记录数据: {transaction_data}")
+            
             transaction = YozuanAccountTransaction(**transaction_data)
             self.db.add(transaction)
             await self.db.commit()
+            await self.db.refresh(transaction)
             
+            print(f"DEBUG: 交易记录创建成功: transaction_id={transaction.transaction_id}")
             return transaction
             
         except Exception as e:

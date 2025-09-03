@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any, Optional
 from config.get_db import get_db
 from ..service.region_service import RegionService
-from shared.utils.response_util import ResponseUtil
+from utils.response_util import ResponseUtil
 
 router = APIRouter()
 
